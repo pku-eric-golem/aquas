@@ -103,8 +103,18 @@ BF16 GEMM FAIL: batch=0 pass=0 row=0 col=0 expected=0001 got=0000
 
 ## Build and logs
 
-For a minimal Rocket simulation setup, run
-`pixi run bash scripts/setup-chipyard-fpu.sh` after installing the Pixi environment.
+Use the repository's existing Chipyard toolchain setup:
+
+```sh
+pixi run setup-chipyard
+# If Chipyard is already initialized, install/rebuild only the extra tools:
+# pixi run setup-chipyard-riscv-extra
+```
+
+That flow builds upstream libgloss with the existing Chipyard RV32 patch.
+GEMM links the installed `htif_nano.specs` and `htif.ld`, just like
+`compile-native` and Chipyard's C tests; no separate libgloss fork or
+GEMM-specific toolchain setup is required.
 
 Requires the configured APS/CIRCT build plus Chipyard's RV32 GCC/libgloss-HTIF,
 Spike/libfesvr, Verilator and Java. The default is `run-binary-fast` with
