@@ -746,16 +746,8 @@ bool SDCSchedule::isScheduleResultWithIIValid(Loop *L, int II) {
                 << ", " << Lat + sdcOp->SDCTime << ") \n");
         }
     }
-    if (maxTime - minTime <= II) {
-        llvm::errs() << "warning: pipeline II (" << II
-            << ") greater than or equal to for loop cycle "
-            << maxTime - minTime
-            << ". There is no need to pipeline loop.\n";
-        L->PipelineFlag = false;
-        L->AchievedII = -1;
-        LLVM_DEBUG(llvm::dbgs() << "warning: pipeline loop (" << L << ") PipelineFlag set to false.\n");
-        return false;
-    }
+    // A short body is still a legal pipelined schedule. Do not silently
+    // discard an explicit initiation-interval contract when latency <= II.
     return true;
 }
 

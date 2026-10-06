@@ -29,6 +29,14 @@ static FlatSymbolRefAttr getPromotableGlobalSymbol(Value memref) {
   if (!getGlobalOp)
     return {};
 
+  bool conditional = false;
+  getGlobalOp->getParentOfType<ModuleOp>().walk([&](aps::WriteSmemIf store) {
+    auto target = store.getMemref().getDefiningOp<GetGlobalOp>();
+    conditional |= target && target.getName() == getGlobalOp.getName();
+  });
+  // Keep one-element conditional banks in the memory protocol as a whole;
+  // promoting just their reads would split one object into RAM and a register.
+  if (conditional) return {};
   return FlatSymbolRefAttr::get(memref.getContext(), getGlobalOp.getName());
 }
 
