@@ -14,7 +14,7 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "thirdparty/HardFloat/source"
 CATALOG = ROOT / "hardware/hardfloat/ip_catalog.yaml"
 

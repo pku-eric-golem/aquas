@@ -2,7 +2,7 @@
 # Full Rocket + RoCC RTL simulation of the compiled RV32 C program.
 set -euo pipefail
 ulimit -c 0
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 cd "$ROOT"
 CHIPYARD=${APS_CHIPYARD:-$ROOT/thirdparty/chipyard}
 EXAMPLE="$ROOT/examples/hardfloat/bf16_gemm"
@@ -15,7 +15,7 @@ export JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS:-"-Xmx16G -Xss8M -XX:ActiveProcesso
 cmake --build build --target aps-e2e -j "${BUILD_JOBS:-3}" > "$OUT/compiler-build.log" 2>&1
 (
     cd "$OUT"
-    bash "$ROOT/scripts/build-hardfloat-ip.sh" --resource-output="$OUT/resource.json"
+    bash "$ROOT/hardware/hardfloat/build-hardfloat-ip.sh" --resource-output="$OUT/resource.json"
 ) > "$OUT/package.log" 2>&1
 python "$EXAMPLE/generate_vectors.py" "$OUT"
 cadl_source="$EXAMPLE/gemm.cadl"

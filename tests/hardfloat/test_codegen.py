@@ -23,7 +23,7 @@ def resource(tmp_path_factory):
     result = subprocess.run(
         [
             "bash",
-            str(ROOT / "scripts/build-hardfloat-ip.sh"),
+            str(ROOT / "hardware/hardfloat/build-hardfloat-ip.sh"),
             f"--resource-output={directory / 'resource.json'}",
         ],
         cwd=directory,
@@ -262,7 +262,7 @@ def test_dedicated_iterative_unit_limits_loop_ii(tmp_path, resource, kind, width
 
 
 def test_reject_stale_padding_contract(tmp_path):
-    result = subprocess.run(["bash", str(ROOT / "scripts/build-hardfloat-ip.sh"),
+    result = subprocess.run(["bash", str(ROOT / "hardware/hardfloat/build-hardfloat-ip.sh"),
                              "width=16", "op=0", "latency=33"],
                             cwd=tmp_path, capture_output=True, text=True)
     assert result.returncode != 0

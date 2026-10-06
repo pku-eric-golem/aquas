@@ -14,7 +14,7 @@ Build APS and CIRCT before running the examples:
 pixi run cmake --build circt/build --target circt-opt firtool CIRCTECMT2 -j 3
 pixi run cmake --build build --target aps-opt aps-e2e -j 3
 pixi run build-hardfloat-ip
-pixi run bash scripts/hardfloat-isax-smoke.sh
+pixi run bash examples/hardfloat/hardfloat-isax-smoke.sh
 pixi run python -m pytest tests/hardfloat -q
 # Full numerical, mapped-netlist and STA acceptance:
 pixi run hardfloat-acceptance

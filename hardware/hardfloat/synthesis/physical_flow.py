@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from buffer_flops import buffer_flops
 
-ROOT=Path(__file__).resolve().parents[2]
+ROOT=Path(__file__).resolve().parents[3]
 HERE=Path(__file__).resolve().parent
 DEFAULT_LIB=ROOT/'thirdparty/chipyard/nextvlsi/ihp13/pdk/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib'
 

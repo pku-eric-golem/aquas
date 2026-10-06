@@ -17,7 +17,7 @@ def run(args, **kwargs):
 @pytest.fixture(scope='module')
 def resource(tmp_path_factory):
     out = tmp_path_factory.mktemp('pipeline-resource')
-    result = subprocess.run(['bash', str(ROOT / 'scripts/build-hardfloat-ip.sh'),
+    result = subprocess.run(['bash', str(ROOT / 'hardware/hardfloat/build-hardfloat-ip.sh'),
                              f'--resource-output={out / "resource.json"}'],
                             cwd=out, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr

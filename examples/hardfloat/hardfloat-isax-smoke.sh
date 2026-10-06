@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Run under pixi run (Verilator, Yosys, PyYAML and SoftFloat toolchain required).
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 OUT="$ROOT/build/hardfloat"
 JOBS="${JOBS:-4}"
 mkdir -p "$OUT/logs"
 (
   cd "$OUT"
-  bash "$ROOT/scripts/build-hardfloat-ip.sh" --resource-output="$OUT/resource.json"
+  bash "$ROOT/hardware/hardfloat/build-hardfloat-ip.sh" --resource-output="$OUT/resource.json"
 )
 python3 tests/hardfloat/generate_vectors.py "$OUT/vectors"
 RTL="$OUT/rtl/HardFloatIP.sv"

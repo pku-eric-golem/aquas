@@ -69,13 +69,13 @@ args = ["test_c", "output"]
 cmd = "riscv32-unknown-elf-gcc -std=gnu99 -O3 -Wall -Wextra -fno-common -fno-builtin-printf -march=rv32imaf_zicsr_zifencei -mabi=ilp32f -mcmodel=medany -specs=htif_nano.specs -static -T htif.ld -I$MEGGINCLUDE -o {{ output }} {{ test_c }} -lm"
 
 [tasks.build-hardfloat-ip]
-cmd = "mkdir -p build/hardfloat && cd build/hardfloat && bash ../../scripts/build-hardfloat-ip.sh --resource-output=resource.json"
+cmd = "mkdir -p build/hardfloat && cd build/hardfloat && bash ../../hardware/hardfloat/build-hardfloat-ip.sh --resource-output=resource.json"
 
 [tasks.hardfloat-acceptance]
-cmd = "bash scripts/hardfloat-acceptance.sh"
+cmd = "bash examples/hardfloat/hardfloat-acceptance.sh"
 
 [tasks.bf16-gemm-rocket]
-cmd = "bash scripts/bf16-gemm-rocket.sh"
+cmd = "bash examples/hardfloat/bf16_gemm/bf16-gemm-rocket.sh"
 
 # APS Spike + Verilator co-sim
 [tasks.aps-cosim-clean]

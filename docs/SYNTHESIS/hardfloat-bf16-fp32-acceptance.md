@@ -79,7 +79,7 @@ Reset invalidates all in-flight and queued responses. Iterative units support
 completion and next admission on the same edge, with one outstanding operation.
 No CPU FPU or FP instruction implements accelerator arithmetic.
 
-`scripts/hardfloat/physical_flow.py` maps these actual RTL registers without
+`hardware/hardfloat/synthesis/physical_flow.py` maps these actual RTL registers without
 repartitioning or inserting stages. `pipeline.json` records native boundary
 mode and mapped cell/DFF counts; `mapping.log` records Liberty cell area.
 Clock constraints remain explicit. There are no generated slow clocks.
