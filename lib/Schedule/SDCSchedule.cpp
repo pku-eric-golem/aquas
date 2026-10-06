@@ -128,6 +128,11 @@ int SDCSchedule::resourceMII(Loop *L) {
       int pressure = RDB.getII(RId);
 
       resPressure[RId] += pressure;
+      // amount=-1 gives each SSA operation a dedicated unit, not a fresh
+      // unit for every loop iteration. Successive uses of that same unit
+      // still have to respect its initiation interval (e.g. iterative FP).
+      if (RDB.getAmount(RId) == -1)
+        resII = std::max(resII, pressure);
     }
 
   for (int i = 1; i < ResourceKind; ++i)
