@@ -3,4 +3,5 @@
 	url = https://github.com/arch-of-shadow/circt-cmt2.git
 [submodule "thirdparty/chipyard"]
 	path = thirdparty/chipyard
-	url = git@github.com:arch-of-shadow/aps-mlir-chipyard.git
+	url = git@github.com:pku-eric-golem/chipyard.git
+	branch = float
