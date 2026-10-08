@@ -1,0 +1,232 @@
+
+****** Vitis HLS - High-Level Synthesis from C, C++ and OpenCL v2024.1 (64-bit)
+  **** SW Build 5069499 on May 21 2024
+  **** IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+  **** SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+  **** Start of session at: Fri Oct  9 00:18:38 2026
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+
+source /opt/Xilinx/Vitis_HLS/2024.1/scripts/vitis_hls/hls.tcl -notrace
+INFO: [HLS 200-10] For user 'ytsun' on host 'hina' (Linux_x86_64 version 5.15.0-190-generic) on Fri Oct 09 00:18:40 CST 2026
+INFO: [HLS 200-10] On os Ubuntu 22.04.4 LTS
+INFO: [HLS 200-10] In directory '/home/ytsun/repos/aquas/tmp/allo/hls_axi'
+WARNING: [HLS 200-2053] The vitis_hls executable is deprecated. Consider using vitis-run --mode hls --tcl
+Sourcing Tcl script 'run.tcl'
+INFO: [HLS 200-1510] Running: open_project out.prj -reset 
+INFO: [HLS 200-10] Opening and resetting project '/home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj'.
+INFO: [HLS 200-1510] Running: open_solution -reset solution1 -flow_target vivado 
+INFO: [HLS 200-10] Creating and opening solution '/home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1'.
+INFO: [HLS 200-10] Cleaning up the solution database.
+INFO: [HLS 200-1505] Using flow_target 'vivado'
+Resolution: For help on HLS 200-1505 see docs.xilinx.com/access/sources/dita/topic?Doc_Version=2024.1%20English&url=ug1448-hls-guidance&resourceid=200-1505.html
+INFO: [HLS 200-1510] Running: set_top gemm_fp32 
+INFO: [HLS 200-1510] Running: add_files kernel.cpp 
+INFO: [HLS 200-10] Adding design file 'kernel.cpp' to the project
+INFO: [HLS 200-1510] Running: add_files -blackbox /home/ytsun/repos/aquas/tmp/allo/blackbox/hf_add_f32.json 
+INFO: [HLS 200-10] Adding black box file '/home/ytsun/repos/aquas/tmp/allo/blackbox/hf_add_f32.json' to the project
+INFO: [HLS 200-1510] Running: add_files -blackbox /home/ytsun/repos/aquas/tmp/allo/blackbox/hf_mul_f32.json 
+INFO: [HLS 200-10] Adding black box file '/home/ytsun/repos/aquas/tmp/allo/blackbox/hf_mul_f32.json' to the project
+INFO: [HLS 200-1510] Running: add_files -tb host.cpp -cflags -std=gnu++0x 
+INFO: [HLS 200-10] Adding test bench file 'host.cpp' to the project
+INFO: [HLS 200-1510] Running: open_solution solution1 
+INFO: [HLS 200-10] Opening solution '/home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1'.
+INFO: [HLS 200-1505] Using flow_target 'vivado'
+Resolution: For help on HLS 200-1505 see docs.xilinx.com/access/sources/dita/topic?Doc_Version=2024.1%20English&url=ug1448-hls-guidance&resourceid=200-1505.html
+INFO: [HLS 200-1510] Running: set_part xc7z020clg400-1 
+INFO: [HLS 200-1611] Setting target device to 'xc7z020-clg400-1'
+INFO: [HLS 200-1510] Running: create_clock -period 10.00 
+INFO: [SYN 201-201] Setting up clock 'default' with a period of 10ns.
+INFO: [HLS 200-1510] Running: csynth_design 
+INFO: [HLS 200-111] Finished File checks and directory preparation: CPU user time: 0.07 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.09 seconds; current allocated memory: 322.383 MB.
+INFO: [HLS 200-10] Analyzing design file '../blackbox/hf_mul_f32.cpp' ... 
+INFO: [HLS 200-10] Analyzing design file '../blackbox/hf_add_f32.cpp' ... 
+INFO: [HLS 200-10] Analyzing design file 'kernel.cpp' ... 
+INFO: [HLS 200-111] Finished Source Code Analysis and Preprocessing: CPU user time: 26.19 seconds. CPU system time: 3.69 seconds. Elapsed time: 32.57 seconds; current allocated memory: 328.539 MB.
+INFO: [HLS 200-777] Using interface defaults for 'Vivado' flow target.
+INFO: [HLS 200-1995] There were 267 instructions in the design after the 'Compile/Link' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 145 instructions in the design after the 'Unroll/Inline (step 1)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 131 instructions in the design after the 'Unroll/Inline (step 2)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 123 instructions in the design after the 'Unroll/Inline (step 3)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 123 instructions in the design after the 'Unroll/Inline (step 4)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 578 instructions in the design after the 'Array/Struct (step 1)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 674 instructions in the design after the 'Array/Struct (step 2)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 674 instructions in the design after the 'Array/Struct (step 3)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 674 instructions in the design after the 'Array/Struct (step 4)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 573 instructions in the design after the 'Array/Struct (step 5)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 566 instructions in the design after the 'Performance (step 1)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 438 instructions in the design after the 'Performance (step 2)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 438 instructions in the design after the 'Performance (step 3)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 438 instructions in the design after the 'Performance (step 4)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 462 instructions in the design after the 'HW Transforms (step 1)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+INFO: [HLS 200-1995] There were 482 instructions in the design after the 'HW Transforms (step 2)' phase of compilation. See the Design Size Report for more details: /home/ytsun/repos/aquas/tmp/allo/hls_axi/out.prj/solution1/syn/report/csynth_design_size.rpt
+WARNING: [HLS 214-386] A depth specification is required for MAXI interface port 'v0' for cosimulation. (kernel.cpp:28:0)
+WARNING: [HLS 214-386] A depth specification is required for MAXI interface port 'v1' for cosimulation. (kernel.cpp:28:0)
+WARNING: [HLS 214-386] A depth specification is required for MAXI interface port 'v2' for cosimulation. (kernel.cpp:28:0)
+WARNING: [HLS 214-386] A depth specification is required for MAXI interface port 'v4' for cosimulation. (kernel.cpp:28:0)
+INFO: [HLS 214-248] Applying array_partition to 'acc': Complete partitioning on dimension 1. Complete partitioning on dimension 2. (kernel.cpp:33:8)
+INFO: [HLS 214-376] automatically set the pipeline for Loop< VITIS_LOOP_38_2> at kernel.cpp:38:22 
+INFO: [HLS 200-111] Finished Compiling Optimization and Transform: CPU user time: 3.27 seconds. CPU system time: 0.55 seconds. Elapsed time: 9.26 seconds; current allocated memory: 337.500 MB.
+INFO: [HLS 200-111] Finished Checking Pragmas: CPU user time: 0 seconds. CPU system time: 0 seconds. Elapsed time: 0 seconds; current allocated memory: 337.500 MB.
+INFO: [HLS 200-10] Starting code transformations ...
+INFO: [HLS 200-111] Finished Standard Transforms: CPU user time: 0.05 seconds. CPU system time: 0 seconds. Elapsed time: 0.06 seconds; current allocated memory: 338.289 MB.
+INFO: [HLS 200-10] Checking synthesizability ...
+INFO: [HLS 200-111] Finished Checking Synthesizability: CPU user time: 0.03 seconds. CPU system time: 0 seconds. Elapsed time: 0.67 seconds; current allocated memory: 338.895 MB.
+INFO: [XFORM 203-401] Performing if-conversion on hyperblock from (kernel.cpp:38:31) to (kernel.cpp:38:22) in function 'gemm_fp32'... converting 18 basic blocks.
+INFO: [HLS 200-111] Finished Loop, function and other optimizations: CPU user time: 0.26 seconds. CPU system time: 0.01 seconds. Elapsed time: 1.88 seconds; current allocated memory: 363.211 MB.
+INFO: [HLS 200-2061] Successfully converted nested loops 'l_S_k_0_k'(kernel.cpp:48:16) and 'l_j'(kernel.cpp:49:12) in function 'gemm_fp32' into perfectly nested loops.
+INFO: [HLS 200-2061] Successfully converted nested loops 'l_outputs_u'(kernel.cpp:70:16) and 'l_v'(kernel.cpp:71:10) in function 'gemm_fp32' into perfectly nested loops.
+INFO: [XFORM 203-541] Flattening a loop nest 'l_S_k_0_k' (kernel.cpp:48:16) in function 'gemm_fp32'.
+INFO: [XFORM 203-541] Flattening a loop nest 'l_outputs_u' (kernel.cpp:70:16) in function 'gemm_fp32'.
+INFO: [HLS 200-111] Finished Architecture Synthesis: CPU user time: 0.26 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.51 seconds; current allocated memory: 392.148 MB.
+INFO: [HLS 200-10] Starting hardware synthesis ...
+INFO: [HLS 200-10] Synthesizing 'gemm_fp32' ...
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-42] -- Implementing module 'gemm_fp32_Pipeline_l_j_init' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [SCHED 204-11] Starting scheduling ...
+INFO: [SCHED 204-61] Pipelining loop 'l_j_init'.
+INFO: [HLS 200-1470] Pipelining result : Target II = 1, Final II = 1, Depth = 1, loop 'l_j_init'
+INFO: [SCHED 204-11] Finished scheduling.
+INFO: [HLS 200-111] Finished Scheduling: CPU user time: 0.06 seconds. CPU system time: 0.04 seconds. Elapsed time: 0.16 seconds; current allocated memory: 392.926 MB.
+INFO: [BIND 205-100] Starting micro-architecture generation ...
+INFO: [BIND 205-101] Performing variable lifetime analysis.
+INFO: [BIND 205-101] Exploring resource sharing.
+INFO: [BIND 205-101] Binding ...
+INFO: [BIND 205-100] Finished micro-architecture generation.
+INFO: [HLS 200-111] Finished Binding: CPU user time: 0.03 seconds. CPU system time: 0 seconds. Elapsed time: 0.77 seconds; current allocated memory: 392.926 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-42] -- Implementing module 'hf_mul_f32' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [SCHED 204-11] Skip scheduling the IP block.
+INFO: [HLS 200-111] Finished Scheduling: CPU user time: 0.03 seconds. CPU system time: 0 seconds. Elapsed time: 0.25 seconds; current allocated memory: 392.926 MB.
+INFO: [BIND 205-100] Starting micro-architecture generation ...
+INFO: [BIND 205-101] Performing variable lifetime analysis.
+INFO: [BIND 205-101] Exploring resource sharing.
+INFO: [BIND 205-101] Binding ...
+INFO: [BIND 205-100] Finished micro-architecture generation.
+INFO: [HLS 200-111] Finished Binding: CPU user time: 0.02 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.87 seconds; current allocated memory: 392.926 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-42] -- Implementing module 'hf_add_f32' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [SCHED 204-11] Skip scheduling the IP block.
+INFO: [HLS 200-111] Finished Scheduling: CPU user time: 0.02 seconds. CPU system time: 0 seconds. Elapsed time: 0.02 seconds; current allocated memory: 392.926 MB.
+INFO: [BIND 205-100] Starting micro-architecture generation ...
+INFO: [BIND 205-101] Performing variable lifetime analysis.
+INFO: [BIND 205-101] Exploring resource sharing.
+INFO: [BIND 205-101] Binding ...
+INFO: [BIND 205-100] Finished micro-architecture generation.
+INFO: [HLS 200-111] Finished Binding: CPU user time: 0.01 seconds. CPU system time: 0 seconds. Elapsed time: 0.01 seconds; current allocated memory: 392.926 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-42] -- Implementing module 'gemm_fp32_Pipeline_l_S_k_0_k_l_j' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [SCHED 204-11] Starting scheduling ...
+INFO: [SCHED 204-61] Pipelining loop 'l_S_k_0_k_l_j'.
+INFO: [HLS 200-1470] Pipelining result : Target II = 1, Final II = 1, Depth = 20, loop 'l_S_k_0_k_l_j'
+INFO: [SCHED 204-11] Finished scheduling.
+INFO: [HLS 200-111] Finished Scheduling: CPU user time: 0.06 seconds. CPU system time: 0 seconds. Elapsed time: 0.06 seconds; current allocated memory: 393.055 MB.
+INFO: [BIND 205-100] Starting micro-architecture generation ...
+INFO: [BIND 205-101] Performing variable lifetime analysis.
+INFO: [BIND 205-101] Exploring resource sharing.
+INFO: [BIND 205-101] Binding ...
+INFO: [BIND 205-100] Finished micro-architecture generation.
+INFO: [HLS 200-111] Finished Binding: CPU user time: 0.03 seconds. CPU system time: 0 seconds. Elapsed time: 0.05 seconds; current allocated memory: 393.055 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-42] -- Implementing module 'gemm_fp32_Pipeline_l_j_back' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [SCHED 204-11] Starting scheduling ...
+INFO: [SCHED 204-61] Pipelining loop 'l_j_back'.
+INFO: [HLS 200-1470] Pipelining result : Target II = 1, Final II = 1, Depth = 2, loop 'l_j_back'
+INFO: [SCHED 204-11] Finished scheduling.
+INFO: [HLS 200-111] Finished Scheduling: CPU user time: 0.08 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.08 seconds; current allocated memory: 394.180 MB.
+INFO: [BIND 205-100] Starting micro-architecture generation ...
+INFO: [BIND 205-101] Performing variable lifetime analysis.
+INFO: [BIND 205-101] Exploring resource sharing.
+INFO: [BIND 205-101] Binding ...
+INFO: [BIND 205-100] Finished micro-architecture generation.
+INFO: [HLS 200-111] Finished Binding: CPU user time: 0.04 seconds. CPU system time: 0 seconds. Elapsed time: 0.03 seconds; current allocated memory: 394.180 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-42] -- Implementing module 'gemm_fp32_Pipeline_l_outputs_u_l_v' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [SCHED 204-11] Starting scheduling ...
+INFO: [SCHED 204-61] Pipelining loop 'l_outputs_u_l_v'.
+INFO: [HLS 200-1470] Pipelining result : Target II = 1, Final II = 1, Depth = 23, loop 'l_outputs_u_l_v'
+INFO: [SCHED 204-11] Finished scheduling.
+INFO: [HLS 200-111] Finished Scheduling: CPU user time: 0.08 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.09 seconds; current allocated memory: 394.570 MB.
+INFO: [BIND 205-100] Starting micro-architecture generation ...
+INFO: [BIND 205-101] Performing variable lifetime analysis.
+INFO: [BIND 205-101] Exploring resource sharing.
+INFO: [BIND 205-101] Binding ...
+INFO: [BIND 205-100] Finished micro-architecture generation.
+INFO: [HLS 200-111] Finished Binding: CPU user time: 0.03 seconds. CPU system time: 0 seconds. Elapsed time: 0.04 seconds; current allocated memory: 394.570 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-42] -- Implementing module 'gemm_fp32' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [SCHED 204-11] Starting scheduling ...
+INFO: [SCHED 204-11] Finished scheduling.
+INFO: [HLS 200-111] Finished Scheduling: CPU user time: 0.12 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.12 seconds; current allocated memory: 396.262 MB.
+INFO: [BIND 205-100] Starting micro-architecture generation ...
+INFO: [BIND 205-101] Performing variable lifetime analysis.
+INFO: [BIND 205-101] Exploring resource sharing.
+INFO: [BIND 205-101] Binding ...
+INFO: [BIND 205-100] Finished micro-architecture generation.
+INFO: [HLS 200-111] Finished Binding: CPU user time: 0.05 seconds. CPU system time: 0 seconds. Elapsed time: 0.06 seconds; current allocated memory: 396.262 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-10] -- Generating RTL for module 'gemm_fp32_Pipeline_l_j_init' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [RTGEN 206-100] Finished creating RTL model for 'gemm_fp32_Pipeline_l_j_init'.
+INFO: [HLS 200-111] Finished Creating RTL model: CPU user time: 0.05 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.06 seconds; current allocated memory: 396.262 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-10] -- Generating RTL for module 'hf_mul_f32' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [RTGEN 206-100] Finished creating RTL model for 'hf_mul_f32'.
+INFO: [HLS 200-111] Finished Creating RTL model: CPU user time: 0.06 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.07 seconds; current allocated memory: 396.262 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-10] -- Generating RTL for module 'hf_add_f32' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [RTGEN 206-100] Finished creating RTL model for 'hf_add_f32'.
+INFO: [HLS 200-111] Finished Creating RTL model: CPU user time: 0.05 seconds. CPU system time: 0.01 seconds. Elapsed time: 1.16 seconds; current allocated memory: 396.262 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-10] -- Generating RTL for module 'gemm_fp32_Pipeline_l_S_k_0_k_l_j' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-1030] Apply Unified Pipeline Control on module 'gemm_fp32_Pipeline_l_S_k_0_k_l_j' pipeline 'l_S_k_0_k_l_j' pipeline type 'loop pipeline'
+INFO: [RTGEN 206-100] Finished creating RTL model for 'gemm_fp32_Pipeline_l_S_k_0_k_l_j'.
+INFO: [HLS 200-111] Finished Creating RTL model: CPU user time: 0.06 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.43 seconds; current allocated memory: 397.379 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-10] -- Generating RTL for module 'gemm_fp32_Pipeline_l_j_back' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-1030] Apply Unified Pipeline Control on module 'gemm_fp32_Pipeline_l_j_back' pipeline 'l_j_back' pipeline type 'loop pipeline'
+INFO: [RTGEN 206-100] Finished creating RTL model for 'gemm_fp32_Pipeline_l_j_back'.
+INFO: [HLS 200-111] Finished Creating RTL model: CPU user time: 0.12 seconds. CPU system time: 0.01 seconds. Elapsed time: 0.13 seconds; current allocated memory: 399.531 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-10] -- Generating RTL for module 'gemm_fp32_Pipeline_l_outputs_u_l_v' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-1030] Apply Unified Pipeline Control on module 'gemm_fp32_Pipeline_l_outputs_u_l_v' pipeline 'l_outputs_u_l_v' pipeline type 'loop pipeline'
+INFO: [RTGEN 206-100] Generating core module 'sparsemux_17_3_32_1_1': 9 instance(s).
+INFO: [RTGEN 206-100] Finished creating RTL model for 'gemm_fp32_Pipeline_l_outputs_u_l_v'.
+INFO: [HLS 200-111] Finished Creating RTL model: CPU user time: 0.18 seconds. CPU system time: 0 seconds. Elapsed time: 0.19 seconds; current allocated memory: 404.484 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-10] -- Generating RTL for module 'gemm_fp32' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+WARNING: [RTGEN 206-101] Design contains AXI ports. Reset is fixed to synchronous and active low.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/gmem0' to 'm_axi'.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/gmem1' to 'm_axi'.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/gmem2' to 'm_axi'.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/gmem3' to 'm_axi'.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/v0' to 's_axilite & ap_none'.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/v1' to 's_axilite & ap_none'.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/v2' to 's_axilite & ap_none'.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/v3' to 'ap_none'.
+INFO: [RTGEN 206-500] Setting interface mode on port 'gemm_fp32/v4' to 's_axilite & ap_none'.
+INFO: [RTGEN 206-500] Setting interface mode on function 'gemm_fp32' to 'ap_ctrl_hs'.
+INFO: [RTGEN 206-100] Bundling port 'v0', 'v1', 'v2' and 'v4' to AXI-Lite port control.
+INFO: [RTGEN 206-100] Finished creating RTL model for 'gemm_fp32'.
+INFO: [RTMG 210-278] Implementing memory 'gemm_fp32_v9_RAM_AUTO_1R1W' using auto RAMs.
+INFO: [HLS 200-111] Finished Creating RTL model: CPU user time: 0.17 seconds. CPU system time: 0.02 seconds. Elapsed time: 0.2 seconds; current allocated memory: 410.973 MB.
+INFO: [HLS 200-111] Finished Generating all RTL models: CPU user time: 0.39 seconds. CPU system time: 0.06 seconds. Elapsed time: 0.58 seconds; current allocated memory: 416.812 MB.
+INFO: [HLS 200-111] Finished Updating report files: CPU user time: 2.95 seconds. CPU system time: 0.06 seconds. Elapsed time: 4.55 seconds; current allocated memory: 425.562 MB.
+INFO: [VLOG 209-307] Generating Verilog RTL for gemm_fp32.
+INFO: [HLS 200-790] **** Loop Constraint Status: All loop constraints were satisfied.
+INFO: [HLS 200-789] **** Estimated Fmax: 136.99 MHz
+INFO: [HLS 200-2161] Finished Command csynth_design Elapsed time: 00:00:55; Allocated memory: 103.230 MB.
+INFO: [HLS 200-112] Total CPU user time: 39.39 seconds. Total CPU system time: 5.02 seconds. Total elapsed time: 60 seconds; peak allocated memory: 425.613 MB.

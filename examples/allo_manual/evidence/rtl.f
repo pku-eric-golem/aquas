@@ -1,0 +1,12 @@
+/home/ytsun/repos/aquas/tmp/allo/main.sv
+/home/ytsun/repos/aquas/tmp/allo/rtl/HardFloatNative.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/gemm_fp32.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/gemm_fp32_flow_control_loop_pipe_sequential_init.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/gemm_fp32_gemm_fp32_Pipeline_l_j_back.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/gemm_fp32_gemm_fp32_Pipeline_l_j_init.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/gemm_fp32_sparsemux_17_3_32_1_1.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/gemm_fp32_v9_RAM_AUTO_1R1W.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/hf_add_f32.v
+/home/ytsun/repos/aquas/tmp/allo/rtl/hf_mul_f32.v

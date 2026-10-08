@@ -1,0 +1,4 @@
+/home/ytsun/repos/aquas/tmp/allo/python/allo/_mlir/exceptions.py:76: RuntimeWarning: 
+[93m[Data Type][0m [94mInput type mismatch: ui8 vs i32. Please use NumPy array to wrap the data to avoid possible result mismatch[0m
+  warnings.warn(self.message, category=self.category)
+{'passed': True, 'precision': 'FP32', 'checked': 512, 'implementation': 'Allo LLVM JIT', 'reference': 'integer IEEE oracle; separate multiply/add RNE'}

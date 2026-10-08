@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+
+# These are intentional, reviewable snapshots and validation evidence.
+!*.sv
+!*.mlir
+!*.log

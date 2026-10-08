@@ -1,0 +1,37 @@
+ARCHIVE PASS files=173 original_inputs=27
+Reproduction mode --full, work directory /home/ytsun/repos/aquas/tmp/allo_manual
+/home/ytsun/repos/aquas/tmp/allo_manual/python/allo
+Generated 16 FP32 test cases and 8 dense benchmark tiles
+NATIVE HARDFLOAT PASS checked=6396 latency=3 II=1 stalls=3256 resets=29
+HLS C MODEL PASS checked=3072 (including in-place accumulation)
+Packaged 11 HLS files, 3 native files, 8 constrained control repairs; no arithmetic replacement
+Packaged 12 RTL files; native ports: ['ap_clk', 'ap_rst', 'ap_start', 'ap_done', 'ap_idle', 'ap_ready', 'A_address0', 'A_ce0', 'A_q0', 'BT_address0', 'BT_ce0', 'BT_q0', 'C_address0', 'C_ce0', 'C_q0', 'use_c', 'D_address0', 'D_ce0', 'D_we0', 'D_d0']
+{
+  "passed": true,
+  "software_to_isax_cycle_ratio": 1.7783516483516484,
+  "checks": {
+    "allo_llvm_outputs": 512,
+    "lowered_hls_c_outputs": 3072,
+    "native_blackbox_outputs": 6396,
+    "native_blackbox_stall_reset": true,
+    "standalone_rtl_outputs": 3072,
+    "rocket_benchmark_outputs": 2048,
+    "rocket_functional_outputs": 2048,
+    "response_backpressure": true,
+    "mid_execution_reset": true,
+    "c_accumulation_and_in_place_writeback": true,
+    "dma_padding_and_guards": true,
+    "corrupted_golden_rejected": true
+  }
+}
+ALLO WRAPPER PASS checked=3072 cycles=44434 backpressure=17 reset=PASS
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/benchmark.log:ALLO_BENCH trial=0 engine=software tiles=8 elements=512 cycles=16553
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/benchmark.log:ALLO_BENCH trial=0 engine=isax tiles=8 elements=512 load=1555 compute=6977 store=606 total=9138
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/benchmark.log:ALLO_BENCH trial=1 engine=isax tiles=8 elements=512 load=1505 compute=6951 store=606 total=9062
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/benchmark.log:ALLO_BENCH trial=1 engine=software tiles=8 elements=512 cycles=15813
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/benchmark.log:ALLO FP32 BENCH PASS trials=2 checked=2048
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/test.log:ALLO FP32 GEMM batch=0 pass=0: 8 tiles + DMA guards PASS
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/test.log:ALLO FP32 GEMM batch=0 pass=1: 8 tiles + DMA guards PASS
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/test.log:ALLO FP32 GEMM batch=1 pass=0: 8 tiles + DMA guards PASS
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/test.log:ALLO FP32 GEMM batch=1 pass=1: 8 tiles + DMA guards PASS
+/home/ytsun/repos/aquas/tmp/allo_manual/soc/test.log:ALLO FP32 GEMM PASS tiles=32 elements=2048 DMA=8tiles

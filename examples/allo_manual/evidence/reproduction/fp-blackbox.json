@@ -1,0 +1,135 @@
+{
+  "mode": "Vitis RTL blackbox, native HardFloat",
+  "contracts": [
+    {
+      "function": "hf_add_f32",
+      "operation": 0,
+      "latency": 3,
+      "II": 1
+    },
+    {
+      "function": "hf_mul_f32",
+      "operation": 2,
+      "latency": 3,
+      "II": 1
+    }
+  ],
+  "source": "hardware/hardfloat/HFNativePipeline.sv",
+  "source_sha256": "c626e055748eb8604cf87ae65cd3d0ec74f9837d95f586874e7c6ec345b230c5",
+  "datapath_adaptation": "CE guards on existing register boundaries; no added pipeline stages",
+  "protocol": "ap_ctrl_none, wire inputs/return, global CE",
+  "auxiliary_output": "constant bool ap_ready registered as a C output argument to match Vitis 2024.1 scalar-return call wiring",
+  "reset": "mask result and freeze arithmetic; HLS validity pipeline handles flushing",
+  "rounding": "RNE",
+  "nan": "RISC-V canonical",
+  "tininess": "after rounding",
+  "no_xilinx_fp_ip": true,
+  "post_hls_leaf_replacement": false,
+  "area_timing": "blackbox resource entries are placeholders; ASIC STA required",
+  "unmodified_hls_verilog_sha256": {
+    "hf_add_f32.v": "161915de4504f100b9715d9e930a572346218e8a3f17074bdcc7acb0f335b40e",
+    "gemm_fp32_gemm_fp32_Pipeline_l_j_back.v": "1895d5c0197818996e994bc64fdabc7eeccb9be2d380574499f016b9f9da8469",
+    "gemm_fp32_sparsemux_17_3_32_1_1.v": "8a79bf90589b196a53c4249cf138369f4bf3375e9edb298f27e3fbf274d766af",
+    "gemm_fp32_gemm_fp32_Pipeline_l_j_init.v": "8446df3f12b7c2b38e5e2d5d645ebd58510e02f0182fc472dac48f9c31ee1d07",
+    "gemm_fp32_flow_control_loop_pipe_sequential_init.v": "9f032034e10c96acf110954fce78dfdc2352f03adda9bb855bc00a72e1abfbbd",
+    "HardFloatNative.v": "27a10f822ce947d59dc5962b630166d18b8846e484d7943c64f4a239fd08eba1",
+    "hf_mul_f32.v": "dc2cc121fe9276673dce413b299fc21446f680f19c33072324c07ddfe6dae62f",
+    "gemm_fp32_v9_RAM_AUTO_1R1W.v": "b7866fe55f8f7544576d4e218f8ca5b09045b3e125c1b69a47d5893a63c77409",
+    "gemm_fp32.v": "01602d7f69cd8b20235cb4841dd7794dc6d7e24b825129eeaf6fdda7a7504a91"
+  },
+  "original_hls_verilog_sha256": {
+    "hf_add_f32.v": "161915de4504f100b9715d9e930a572346218e8a3f17074bdcc7acb0f335b40e",
+    "gemm_fp32_gemm_fp32_Pipeline_l_j_back.v": "1895d5c0197818996e994bc64fdabc7eeccb9be2d380574499f016b9f9da8469",
+    "gemm_fp32_sparsemux_17_3_32_1_1.v": "8a79bf90589b196a53c4249cf138369f4bf3375e9edb298f27e3fbf274d766af",
+    "gemm_fp32_gemm_fp32_Pipeline_l_j_init.v": "8446df3f12b7c2b38e5e2d5d645ebd58510e02f0182fc472dac48f9c31ee1d07",
+    "gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v": "f570ff5b88831a5ca086b6e29f4befb8668065f57340882ea33eca0ac2f2c569",
+    "gemm_fp32_flow_control_loop_pipe_sequential_init.v": "9f032034e10c96acf110954fce78dfdc2352f03adda9bb855bc00a72e1abfbbd",
+    "HardFloatNative.v": "27a10f822ce947d59dc5962b630166d18b8846e484d7943c64f4a239fd08eba1",
+    "hf_mul_f32.v": "dc2cc121fe9276673dce413b299fc21446f680f19c33072324c07ddfe6dae62f",
+    "gemm_fp32_v9_RAM_AUTO_1R1W.v": "b7866fe55f8f7544576d4e218f8ca5b09045b3e125c1b69a47d5893a63c77409",
+    "gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v": "e1ec4ef821c1e0a89ad8e031c4d4c05c11a158db2704f90840beecec77cc4577",
+    "gemm_fp32.v": "01602d7f69cd8b20235cb4841dd7794dc6d7e24b825129eeaf6fdda7a7504a91"
+  },
+  "packaged_verilog_sha256": {
+    "hf_add_f32.v": "161915de4504f100b9715d9e930a572346218e8a3f17074bdcc7acb0f335b40e",
+    "gemm_fp32_gemm_fp32_Pipeline_l_j_back.v": "1895d5c0197818996e994bc64fdabc7eeccb9be2d380574499f016b9f9da8469",
+    "gemm_fp32_sparsemux_17_3_32_1_1.v": "8a79bf90589b196a53c4249cf138369f4bf3375e9edb298f27e3fbf274d766af",
+    "gemm_fp32_gemm_fp32_Pipeline_l_j_init.v": "8446df3f12b7c2b38e5e2d5d645ebd58510e02f0182fc472dac48f9c31ee1d07",
+    "gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v": "0846c3bd02ae58e7034b3fd8f68e3ce2f9180d81f05083f83cb1413639aa9e56",
+    "gemm_fp32_flow_control_loop_pipe_sequential_init.v": "9f032034e10c96acf110954fce78dfdc2352f03adda9bb855bc00a72e1abfbbd",
+    "HardFloatNative.v": "27a10f822ce947d59dc5962b630166d18b8846e484d7943c64f4a239fd08eba1",
+    "hf_mul_f32.v": "dc2cc121fe9276673dce413b299fc21446f680f19c33072324c07ddfe6dae62f",
+    "gemm_fp32_v9_RAM_AUTO_1R1W.v": "b7866fe55f8f7544576d4e218f8ca5b09045b3e125c1b69a47d5893a63c77409",
+    "gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v": "f7b76ec07efb522a3994668de636e587d6fe3f7edd2008e8da95a342a498d00c",
+    "gemm_fp32.v": "01602d7f69cd8b20235cb4841dd7794dc6d7e24b825129eeaf6fdda7a7504a91"
+  },
+  "rtl_interface_fixes": [
+    {
+      "file": "gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v",
+      "unused_signal": "grp_hf_add_f32_fu_634_ap_ready",
+      "reason": "Vitis 2024.1 emits duplicate ap_ready; extra wire has no consumers",
+      "arithmetic_or_schedule_changed": false
+    },
+    {
+      "file": "gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v",
+      "signal": "ap_block_pp0_stage0_11001",
+      "original_expression": "((icmp_ln73_reg_1408_pp0_iter6_reg == 1'd0) & (ap_enable_reg_pp0_iter7 == 1'b1))",
+      "replacement": "1'b0",
+      "reason": "Fixed-latency II=1 ap_ctrl_none wire result has no dynamic done handshake",
+      "arithmetic_or_schedule_changed": false
+    },
+    {
+      "file": "gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v",
+      "signal": "ap_block_pp0_stage0_11001_ignoreCallOp122",
+      "original_expression": "((icmp_ln73_reg_1408_pp0_iter6_reg == 1'd0) & (ap_enable_reg_pp0_iter7 == 1'b1))",
+      "replacement": "1'b0",
+      "reason": "Fixed-latency II=1 ap_ctrl_none wire result has no dynamic done handshake",
+      "arithmetic_or_schedule_changed": false
+    },
+    {
+      "file": "gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v",
+      "signal": "ap_block_pp0_stage0_subdone",
+      "original_expression": "((icmp_ln73_reg_1408_pp0_iter6_reg == 1'd0) & (ap_enable_reg_pp0_iter7 == 1'b1))",
+      "replacement": "1'b0",
+      "reason": "Fixed-latency II=1 ap_ctrl_none wire result has no dynamic done handshake",
+      "arithmetic_or_schedule_changed": false
+    },
+    {
+      "file": "gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v",
+      "signal": "ap_block_pp0_stage0_11001",
+      "original_expression": "(((icmp_ln51_reg_331_pp0_iter10_reg == 1'd0) & (ap_enable_reg_pp0_iter11 == 1'b1)) | ((icmp_ln51_reg_331_pp0_iter6_reg == 1'd0) & (ap_enable_reg_pp0_iter7 == 1'b1)))",
+      "replacement": "1'b0",
+      "reason": "Fixed-latency II=1 ap_ctrl_none wire result has no dynamic done handshake",
+      "arithmetic_or_schedule_changed": false
+    },
+    {
+      "file": "gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v",
+      "signal": "ap_block_pp0_stage0_11001_ignoreCallOp67",
+      "original_expression": "(((icmp_ln51_reg_331_pp0_iter10_reg == 1'd0) & (ap_enable_reg_pp0_iter11 == 1'b1)) | ((icmp_ln51_reg_331_pp0_iter6_reg == 1'd0) & (ap_enable_reg_pp0_iter7 == 1'b1)))",
+      "replacement": "1'b0",
+      "reason": "Fixed-latency II=1 ap_ctrl_none wire result has no dynamic done handshake",
+      "arithmetic_or_schedule_changed": false
+    },
+    {
+      "file": "gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v",
+      "signal": "ap_block_pp0_stage0_11001_ignoreCallOp73",
+      "original_expression": "(((icmp_ln51_reg_331_pp0_iter10_reg == 1'd0) & (ap_enable_reg_pp0_iter11 == 1'b1)) | ((icmp_ln51_reg_331_pp0_iter6_reg == 1'd0) & (ap_enable_reg_pp0_iter7 == 1'b1)))",
+      "replacement": "1'b0",
+      "reason": "Fixed-latency II=1 ap_ctrl_none wire result has no dynamic done handshake",
+      "arithmetic_or_schedule_changed": false
+    },
+    {
+      "file": "gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v",
+      "signal": "ap_block_pp0_stage0_subdone",
+      "original_expression": "(((icmp_ln51_reg_331_pp0_iter10_reg == 1'd0) & (ap_enable_reg_pp0_iter11 == 1'b1)) | ((icmp_ln51_reg_331_pp0_iter6_reg == 1'd0) & (ap_enable_reg_pp0_iter7 == 1'b1)))",
+      "replacement": "1'b0",
+      "reason": "Fixed-latency II=1 ap_ctrl_none wire result has no dynamic done handshake",
+      "arithmetic_or_schedule_changed": false
+    }
+  ],
+  "external_rtl_sha256": {
+    "HardFloatNative.v": "27a10f822ce947d59dc5962b630166d18b8846e484d7943c64f4a239fd08eba1",
+    "hf_add_f32.v": "161915de4504f100b9715d9e930a572346218e8a3f17074bdcc7acb0f335b40e",
+    "hf_mul_f32.v": "dc2cc121fe9276673dce413b299fc21446f680f19c33072324c07ddfe6dae62f"
+  }
+}

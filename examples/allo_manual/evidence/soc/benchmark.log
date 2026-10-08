@@ -1,0 +1,28 @@
+make: Entering directory '/home/ytsun/repos/aquas/thirdparty/chipyard/sims/verilator'
+Running with RISCV=/home/ytsun/repos/aquas/.pixi/envs/default/riscv-tools
+Using firtool here:/home/ytsun/repos/aquas/thirdparty/firtool-1.75.0/bin/firtool
+if [ "/home/ytsun/repos/aquas/tmp/allo/software/benchmark.riscv" != "none" ] && [ ! -f "/home/ytsun/repos/aquas/tmp/allo/software/benchmark.riscv" ]; then printf "\n\nBinary /home/ytsun/repos/aquas/tmp/allo/software/benchmark.riscv not found\n\n"; exit 1; fi
+(set -o pipefail &&  /home/ytsun/repos/aquas/tmp/allo/soc/simulator \
+	+permissive \
+	+dramsim +dramsim_ini_dir=/home/ytsun/repos/aquas/thirdparty/chipyard/generators/testchipip/src/main/resources/dramsim2_ini +max-cycles=5000000   +loadmem=/home/ytsun/repos/aquas/tmp/allo/software/benchmark.riscv  \
+	+permissive-off \
+	/home/ytsun/repos/aquas/tmp/allo/software/benchmark.riscv \
+	 \
+	</dev/null | tee /home/ytsun/repos/aquas/tmp/allo/soc/output/benchmark.log)
+== Loading device model file '[UART] UART0 is here (stdin/stdout).
+/home/ytsun/repos/aquas/thirdparty/chipyard/generators/testchipip/src/main/resources/dramsim2_ini/DDR3_micron_64M_8B_x4_sg15.ini' == 
+== Loading system model file '/home/ytsun/repos/aquas/thirdparty/chipyard/generators/testchipip/src/main/resources/dramsim2_ini/system.ini' == 
+===== MemorySystem 0 =====
+CH. 0 TOTAL_STORAGE : 4096MB | 1 Ranks | 16 Devices per rank
+DRAMSim2 Clock Frequency =666666666Hz, CPU Clock Frequency=500000000Hz
+ALLO FP32 GEMM: Rocket software vs Allo/Vitis HLS RTL, separate mul/add RNE
+ALLO_BENCH trial=0 engine=software tiles=8 elements=512 cycles=16553
+ALLO_BENCH trial=0 engine=isax tiles=8 elements=512 load=1555 compute=6977 store=606 total=9138
+ALLO_BENCH trial=1 engine=isax tiles=8 elements=512 load=1505 compute=6951 store=606 total=9062
+ALLO_BENCH trial=1 engine=software tiles=8 elements=512 cycles=15813
+ALLO FP32 BENCH PASS trials=2 checked=2048
+- /home/ytsun/repos/aquas/tmp/allo/soc/generated-src/chipyard.harness.TestHarness.APSRocketConfig/gen-collateral/TestDriver.v:158: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.048 2026-04-26
+- Verilator: $finish at 411us; walltime 39.148 s; speed 10.500 us/s
+- Verilator: cpu 39.146 s on 1 threads; allocated 286 MB
+make: Leaving directory '/home/ytsun/repos/aquas/thirdparty/chipyard/sims/verilator'

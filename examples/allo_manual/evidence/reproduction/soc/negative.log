@@ -1,0 +1,28 @@
+make: Entering directory '/home/ytsun/repos/aquas/thirdparty/chipyard/sims/verilator'
+Running with RISCV=/home/ytsun/repos/aquas/.pixi/envs/default/riscv-tools
+Using firtool here:/home/ytsun/repos/aquas/thirdparty/firtool-1.75.0/bin/firtool
+if [ "/home/ytsun/repos/aquas/tmp/allo_manual/software/test_gemm_fail.riscv" != "none" ] && [ ! -f "/home/ytsun/repos/aquas/tmp/allo_manual/software/test_gemm_fail.riscv" ]; then printf "\n\nBinary /home/ytsun/repos/aquas/tmp/allo_manual/software/test_gemm_fail.riscv not found\n\n"; exit 1; fi
+(set -o pipefail &&  /home/ytsun/repos/aquas/tmp/allo_manual/soc/simulator \
+	+permissive \
+	+dramsim +dramsim_ini_dir=/home/ytsun/repos/aquas/thirdparty/chipyard/generators/testchipip/src/main/resources/dramsim2_ini +max-cycles=5000000   +loadmem=/home/ytsun/repos/aquas/tmp/allo_manual/software/test_gemm_fail.riscv  \
+	+permissive-off \
+	/home/ytsun/repos/aquas/tmp/allo_manual/software/test_gemm_fail.riscv \
+	 \
+	</dev/null | tee /home/ytsun/repos/aquas/tmp/allo_manual/soc/output/test_gemm_fail.log)
+== Loading device model file '/home/ytsun/repos/aquas/thirdparty/chipyard/generators/testchipip/src/main/resources/dramsim2_ini/DDR3_micron_64M_8B_x4_sg15.ini' == 
+[UART] UART0 is here (stdin/stdout).
+== Loading system model file '/home/ytsun/repos/aquas/thirdparty/chipyard/generators/testchipip/src/main/resources/dramsim2_ini/system.ini' == 
+===== MemorySystem 0 =====
+CH. 0 TOTAL_STORAGE : 4096MB | 1 Ranks | 16 Devices per rank
+DRAMSim2 Clock Frequency =666666666Hz, CPU Clock Frequency=500000000Hz
+ALLO FP32 GEMM Rocket/RoCC: 8x8, Allo/Vitis, tiled DMA
+ALLO FP32 GEMM FAIL: batch=0 pass=0 row=0 col=0 expected=00000001 got=00000000
+*** FAILED *** (tohost = 1)
+[188055000] %Error: TestHarness.sv:99: Assertion failed in TestDriver.testHarness: Assertion failed: *** FAILED *** (exit code =          1)
+
+    at SimTSI.scala:21 assert(!error, "*** FAILED *** (exit code = %%d)\n", exit >> 1.U)
+
+%Error: /home/ytsun/repos/aquas/tmp/allo_manual/soc/generated-src/chipyard.harness.TestHarness.APSRocketConfig/gen-collateral/TestHarness.sv:99: Verilog $stop
+Aborting...
+make: *** [/home/ytsun/repos/aquas/thirdparty/chipyard/common.mk:340: /home/ytsun/repos/aquas/tmp/allo_manual/software/test_gemm_fail.riscv.run.fast] Error 1
+make: Leaving directory '/home/ytsun/repos/aquas/thirdparty/chipyard/sims/verilator'

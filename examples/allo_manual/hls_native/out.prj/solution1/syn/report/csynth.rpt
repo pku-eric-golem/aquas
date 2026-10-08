@@ -1,0 +1,195 @@
+
+
+================================================================
+== Synthesis Summary Report of 'gemm_fp32'
+================================================================
++ General Information: 
+    * Date:           Fri Oct  9 00:19:30 2026
+    * Version:        2024.1 (Build 5069499 on May 21 2024)
+    * Project:        out.prj
+    * Solution:       solution1 (Vivado IP Flow Target)
+    * Product family: zynq
+    * Target device:  xc7z020-clg400-1
+    
+
++ Performance & Resource Estimates: 
+    
+    PS: '+' for module; 'o' for loop; '*' for dataflow
+    +---------------------------------------+------+------+---------+-----------+----------+---------+------+----------+------+----+-----------+-----------+-----+
+    |                Modules                | Issue|      | Latency |  Latency  | Iteration|         | Trip |          |      |    |           |           |     |
+    |                & Loops                | Type | Slack| (cycles)|    (ns)   |  Latency | Interval| Count| Pipelined| BRAM | DSP|     FF    |    LUT    | URAM|
+    +---------------------------------------+------+------+---------+-----------+----------+---------+------+----------+------+----+-----------+-----------+-----+
+    |+ gemm_fp32                            |     -|  0.00|      900|  9.000e+03|         -|      901|     -|        no|     -|   -|  2837 (2%)|  1778 (3%)|    -|
+    | + gemm_fp32_Pipeline_l_outputs_u_l_v  |     -|  0.00|       74|    740.000|         -|       74|     -|        no|     -|   -|  339 (~0%)|   654 (1%)|    -|
+    |  o l_outputs_u_l_v                    |     -|  7.30|       72|    720.000|        10|        1|    64|       yes|     -|   -|          -|          -|    -|
+    |   + hf_add_f32                        |     -|  7.30|        3|     30.000|         -|        1|     -|  yes(flp)|     -|   -|          -|          -|    -|
+    | o l_mac_i                             |     -|  7.30|      824|  8.240e+03|       103|        -|     8|        no|     -|   -|          -|          -|    -|
+    |  + gemm_fp32_Pipeline_l_j_init        |     -|  1.66|       10|    100.000|         -|       10|     -|        no|     -|   -|    6 (~0%)|   53 (~0%)|    -|
+    |   o l_j_init                          |     -|  7.30|        8|     80.000|         1|        1|     8|       yes|     -|   -|          -|          -|    -|
+    |  + gemm_fp32_Pipeline_l_S_k_0_k_l_j   |     -|  0.00|       77|    770.000|         -|       77|     -|        no|     -|   -|  342 (~0%)|  239 (~0%)|    -|
+    |   o l_S_k_0_k_l_j                     |     -|  7.30|       75|    750.000|        13|        1|    64|       yes|     -|   -|          -|          -|    -|
+    |    + hf_mul_f32                       |     -|  7.30|        3|     30.000|         -|        1|     -|  yes(flp)|     -|   -|          -|          -|    -|
+    |    + hf_add_f32                       |     -|  7.30|        3|     30.000|         -|        1|     -|  yes(flp)|     -|   -|          -|          -|    -|
+    |  + gemm_fp32_Pipeline_l_j_back        |     -|  2.39|       10|    100.000|         -|       10|     -|        no|     -|   -|   10 (~0%)|   64 (~0%)|    -|
+    |   o l_j_back                          |     -|  7.30|        8|     80.000|         2|        1|     8|       yes|     -|   -|          -|          -|    -|
+    +---------------------------------------+------+------+---------+-----------+----------+---------+------+----------+------+----+-----------+-----------+-----+
+
+
+================================================================
+== HW Interfaces
+================================================================
+* AP_MEMORY
++-------------+-----------+----------+
+| Port        | Direction | Bitwidth |
++-------------+-----------+----------+
+| A_address0  | out       | 6        |
+| A_q0        | in        | 32       |
+| BT_address0 | out       | 6        |
+| BT_q0       | in        | 32       |
+| C_address0  | out       | 6        |
+| C_q0        | in        | 32       |
+| D_address0  | out       | 6        |
+| D_d0        | out       | 32       |
++-------------+-----------+----------+
+
+* Other Ports
++-------+---------+-----------+----------+
+| Port  | Mode    | Direction | Bitwidth |
++-------+---------+-----------+----------+
+| use_c | ap_none | in        | 8        |
++-------+---------+-----------+----------+
+
+* TOP LEVEL CONTROL
++-----------+------------+-----------------------------------+
+| Interface | Type       | Ports                             |
++-----------+------------+-----------------------------------+
+| ap_clk    | clock      | ap_clk                            |
+| ap_rst    | reset      | ap_rst                            |
+| ap_ctrl   | ap_ctrl_hs | ap_done ap_idle ap_ready ap_start |
++-----------+------------+-----------------------------------+
+
+
+================================================================
+== SW I/O Information
+================================================================
+* Top Function Arguments
++----------+-----------+---------------+
+| Argument | Direction | Datatype      |
++----------+-----------+---------------+
+| A        | in        | float*        |
+| BT       | in        | float*        |
+| C        | in        | float*        |
+| use_c    | in        | unsigned char |
+| D        | out       | float*        |
++----------+-----------+---------------+
+
+* SW-to-HW Mapping
++----------+--------------+---------+----------+
+| Argument | HW Interface | HW Type | HW Usage |
++----------+--------------+---------+----------+
+| A        | A_address0   | port    | offset   |
+| A        | A_ce0        | port    |          |
+| A        | A_q0         | port    |          |
+| BT       | BT_address0  | port    | offset   |
+| BT       | BT_ce0       | port    |          |
+| BT       | BT_q0        | port    |          |
+| C        | C_address0   | port    | offset   |
+| C        | C_ce0        | port    |          |
+| C        | C_q0         | port    |          |
+| use_c    | use_c        | port    |          |
+| D        | D_address0   | port    | offset   |
+| D        | D_ce0        | port    |          |
+| D        | D_we0        | port    |          |
+| D        | D_d0         | port    |          |
++----------+--------------+---------+----------+
+
+
+================================================================
+== Bind Op Report
+================================================================
++---------------------------------------+-----+--------+---------------+-----------+----------+---------+
+| Name                                  | DSP | Pragma | Variable      | Op        | Impl     | Latency |
++---------------------------------------+-----+--------+---------------+-----------+----------+---------+
+| + gemm_fp32                           | 0   |        |               |           |          |         |
+|   icmp_ln45_fu_825_p2                 |     |        | icmp_ln45     | seteq     | auto     | 0       |
+|   add_ln45_fu_831_p2                  |     |        | add_ln45      | add       | fabric   | 0       |
+|   empty_fu_1116_p2                    |     |        | empty         | seteq     | auto     | 0       |
+|   v26_fu_1098_p2                      |     |        | v26           | seteq     | auto     | 0       |
+|  + gemm_fp32_Pipeline_l_j_init        | 0   |        |               |           |          |         |
+|    icmp_ln47_fu_54_p2                 |     |        | icmp_ln47     | seteq     | auto     | 0       |
+|    add_ln47_fu_60_p2                  |     |        | add_ln47      | add       | fabric   | 0       |
+|  + gemm_fp32_Pipeline_l_outputs_u_l_v | 0   |        |               |           |          |         |
+|    icmp_ln73_fu_659_p2                |     |        | icmp_ln73     | seteq     | auto     | 0       |
+|    add_ln73_fu_665_p2                 |     |        | add_ln73      | add       | fabric   | 0       |
+|    icmp_ln74_fu_682_p2                |     |        | icmp_ln74     | seteq     | auto     | 0       |
+|    select_ln73_fu_688_p3              |     |        | select_ln73   | select    | auto_sel | 0       |
+|    add_ln73_1_fu_696_p2               |     |        | add_ln73_1    | add       | fabric   | 0       |
+|    select_ln73_1_fu_702_p3            |     |        | select_ln73_1 | select    | auto_sel | 0       |
+|    add_ln81_fu_744_p2                 |     |        | add_ln81      | add       | fabric   | 0       |
+|    initial_fu_1046_p3                 |     |        | initial       | select    | auto_sel | 0       |
+|    sparsemux_17_3_32_1_1_U73          |     |        | tmp           | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U74          |     |        | tmp_1         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U75          |     |        | tmp_2         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U76          |     |        | tmp_3         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U77          |     |        | tmp_4         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U78          |     |        | tmp_5         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U79          |     |        | tmp_6         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U80          |     |        | tmp_7         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U81          |     |        | v28           | sparsemux | auto     | 0       |
+|    grp_hf_add_f32_fu_634              |     |        | v30           | blackbox  | auto     | 3       |
+|    add_ln74_fu_718_p2                 |     |        | add_ln74      | add       | fabric   | 0       |
+|  + gemm_fp32_Pipeline_l_S_k_0_k_l_j   | 0   |        |               |           |          |         |
+|    icmp_ln51_fu_160_p2                |     |        | icmp_ln51     | seteq     | auto     | 0       |
+|    add_ln51_fu_166_p2                 |     |        | add_ln51      | add       | fabric   | 0       |
+|    icmp_ln52_fu_183_p2                |     |        | icmp_ln52     | seteq     | auto     | 0       |
+|    select_ln51_fu_189_p3              |     |        | select_ln51   | select    | auto_sel | 0       |
+|    add_ln51_1_fu_197_p2               |     |        | add_ln51_1    | add       | fabric   | 0       |
+|    select_ln51_1_fu_203_p3            |     |        | select_ln51_1 | select    | auto_sel | 0       |
+|    first_iter_0_fu_211_p2             |     |        | first_iter_0  | seteq     | auto     | 0       |
+|    empty_fu_236_p2                    |     |        | empty         | add       | fabric   | 0       |
+|    add_ln55_fu_261_p2                 |     |        | add_ln55      | add       | fabric   | 0       |
+|    grp_hf_mul_f32_fu_128              |     |        | v15           | blackbox  | auto     | 3       |
+|    grp_hf_add_f32_fu_135              |     |        | v19           | blackbox  | auto     | 3       |
+|    add_ln52_fu_217_p2                 |     |        | add_ln52      | add       | fabric   | 0       |
+|  + gemm_fp32_Pipeline_l_j_back        | 0   |        |               |           |          |         |
+|    icmp_ln67_fu_213_p2                |     |        | icmp_ln67     | seteq     | auto     | 0       |
+|    add_ln67_fu_219_p2                 |     |        | add_ln67      | add       | fabric   | 0       |
++---------------------------------------+-----+--------+---------------+-----------+----------+---------+
+
+
+================================================================
+== Storage Report
+================================================================
++-------------+---------------+------+------+------+--------+----------+------+---------+------------------+
+| Name        | Usage         | Type | BRAM | URAM | Pragma | Variable | Impl | Latency | Bitwidth, Depth, |
+|             |               |      |      |      |        |          |      |         | Banks            |
++-------------+---------------+------+------+------+--------+----------+------+---------+------------------+
+| + gemm_fp32 |               |      | 0    | 0    |        |          |      |         |                  |
+|   v9_U      | ram_s2p array |      |      |      |        | v9       | auto | 1       | 32, 8, 1         |
++-------------+---------------+------+------+------+--------+----------+------+---------+------------------+
+
+
+================================================================
+== Pragma Report
+================================================================
+* Valid Pragma Syntax
++-----------------+-----------------------------+----------------------------------------------------+
+| Type            | Options                     | Location                                           |
++-----------------+-----------------------------+----------------------------------------------------+
+| interface       | ap_ctrl_none port=return    | ../blackbox/hf_add_f32.cpp:3 in hf_add_f32, return |
+| interface       | ap_ctrl_none port=return    | ../blackbox/hf_mul_f32.cpp:3 in hf_mul_f32, return |
+| interface       | ap_ctrl_hs port=return      | kernel.cpp:29 in gemm_fp32, return                 |
+| interface       | ap_memory port=A latency=1  | kernel.cpp:30 in gemm_fp32, A                      |
+| interface       | ap_memory port=BT latency=1 | kernel.cpp:31 in gemm_fp32, BT                     |
+| interface       | ap_memory port=C latency=1  | kernel.cpp:32 in gemm_fp32, C                      |
+| interface       | ap_memory port=D latency=1  | kernel.cpp:33 in gemm_fp32, D                      |
+| interface       | ap_none port=use_c          | kernel.cpp:34 in gemm_fp32, use_c                  |
+| array_partition | variable=acc complete dim=1 | kernel.cpp:37 in gemm_fp32, acc                    |
+| array_partition | variable=acc complete dim=2 | kernel.cpp:38 in gemm_fp32, acc                    |
+| pipeline        | II=1                        | kernel.cpp:48 in gemm_fp32                         |
+| pipeline        | II=1                        | kernel.cpp:53 in gemm_fp32                         |
+| pipeline        | II=1                        | kernel.cpp:68 in gemm_fp32                         |
+| pipeline        | II=1                        | kernel.cpp:75 in gemm_fp32                         |
++-----------------+-----------------------------+----------------------------------------------------+
+
+

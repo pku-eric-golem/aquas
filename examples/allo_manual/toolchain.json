@@ -1,0 +1,17 @@
+{
+  "allo": "3f2ea5d45e3b9e4d100a7cda7ac694443da6611b",
+  "chipyard": "58664cfa9e2e44b0ec606679850e44ba185b2d3e",
+  "vitis_hls": "2024.1",
+  "hls_part": "xc7z020clg400-1",
+  "hls_clock_ns": 10,
+  "hardfloat_sources": "thirdparty/HardFloat/SOURCE.sha256",
+  "acceptance": "APSRocketConfig RTL simulation; no ASIC backend",
+  "llvm_version": "22.0.0git",
+  "llvm_commit": "6b09f739c4d085dc39eb9ff220c786bc3aa8c7fb",
+  "python": "3.12.13",
+  "numpy": "2.4.4",
+  "nanobind": "2.12.0",
+  "verilator": "5.048 (Pixi)",
+  "host_soc_compiler": "Clang C++20, -O1",
+  "software_compiler": "riscv32-unknown-elf-gcc 13.2.0; rv32imaf_zicsr_zifencei / ilp32f"
+}

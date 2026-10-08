@@ -1,0 +1,4 @@
+/home/ytsun/repos/aquas/.pixi/envs/default/riscv-tools/bin/../lib/gcc/riscv32-unknown-elf/13.2.0/../../../../riscv32-unknown-elf/bin/ld: warning: /home/ytsun/repos/aquas/tmp/allo_manual/software/benchmark.riscv has a LOAD segment with RWX permissions
+/home/ytsun/repos/aquas/.pixi/envs/default/riscv-tools/bin/../lib/gcc/riscv32-unknown-elf/13.2.0/../../../../riscv32-unknown-elf/bin/ld: warning: /home/ytsun/repos/aquas/tmp/allo_manual/software/test_gemm.riscv has a LOAD segment with RWX permissions
+/home/ytsun/repos/aquas/.pixi/envs/default/riscv-tools/bin/../lib/gcc/riscv32-unknown-elf/13.2.0/../../../../riscv32-unknown-elf/bin/ld: warning: /home/ytsun/repos/aquas/tmp/allo_manual/software/test_gemm_fail.riscv has a LOAD segment with RWX permissions
+ALLO FP32 full Rocket/C RTL simulation PASS, including corrupted-golden rejection

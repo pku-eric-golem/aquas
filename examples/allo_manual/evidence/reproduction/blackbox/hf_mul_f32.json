@@ -1,0 +1,63 @@
+{
+  "c_function_name": "hf_mul_f32",
+  "rtl_top_module_name": "hf_mul_f32",
+  "c_files": [
+    {
+      "c_file": "/home/ytsun/repos/aquas/tmp/allo_manual/blackbox/hf_mul_f32.cpp",
+      "cflag": "-fno-fast-math -ffp-contract=off"
+    }
+  ],
+  "rtl_files": [
+    "/home/ytsun/repos/aquas/tmp/allo_manual/blackbox/hf_mul_f32.v"
+  ],
+  "c_parameters": [
+    {
+      "c_name": "a",
+      "c_port_direction": "in",
+      "rtl_ports": {
+        "data_read_in": "a"
+      }
+    },
+    {
+      "c_name": "b",
+      "c_port_direction": "in",
+      "rtl_ports": {
+        "data_read_in": "b"
+      }
+    },
+    {
+      "c_name": "ap_ready",
+      "c_port_direction": "out",
+      "rtl_ports": {
+        "data_write_out": "ap_ready"
+      }
+    }
+  ],
+  "c_return": {
+    "c_port_direction": "out",
+    "rtl_ports": {
+      "data_write_out": "result"
+    }
+  },
+  "rtl_common_signal": {
+    "module_clock": "ap_clk",
+    "module_reset": "ap_rst",
+    "module_clock_enable": "ap_ce",
+    "ap_ctrl_chain_protocol_idle": "",
+    "ap_ctrl_chain_protocol_start": "",
+    "ap_ctrl_chain_protocol_ready": "",
+    "ap_ctrl_chain_protocol_done": "",
+    "ap_ctrl_chain_protocol_continue": ""
+  },
+  "rtl_performance": {
+    "latency": "3",
+    "II": "1"
+  },
+  "rtl_resource_usage": {
+    "FF": "0",
+    "LUT": "0",
+    "BRAM": "0",
+    "URAM": "0",
+    "DSP": "0"
+  }
+}

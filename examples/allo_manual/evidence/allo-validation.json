@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "precision": "FP32",
+  "checked": 512,
+  "implementation": "Allo LLVM JIT",
+  "reference": "integer IEEE oracle; separate multiply/add RNE"
+}

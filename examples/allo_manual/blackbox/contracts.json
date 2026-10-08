@@ -1,0 +1,29 @@
+{
+  "mode": "Vitis RTL blackbox, native HardFloat",
+  "contracts": [
+    {
+      "function": "hf_add_f32",
+      "operation": 0,
+      "latency": 3,
+      "II": 1
+    },
+    {
+      "function": "hf_mul_f32",
+      "operation": 2,
+      "latency": 3,
+      "II": 1
+    }
+  ],
+  "source": "hardware/hardfloat/HFNativePipeline.sv",
+  "source_sha256": "c626e055748eb8604cf87ae65cd3d0ec74f9837d95f586874e7c6ec345b230c5",
+  "datapath_adaptation": "CE guards on existing register boundaries; no added pipeline stages",
+  "protocol": "ap_ctrl_none, wire inputs/return, global CE",
+  "auxiliary_output": "constant bool ap_ready registered as a C output argument to match Vitis 2024.1 scalar-return call wiring",
+  "reset": "mask result and freeze arithmetic; HLS validity pipeline handles flushing",
+  "rounding": "RNE",
+  "nan": "RISC-V canonical",
+  "tininess": "after rounding",
+  "no_xilinx_fp_ip": true,
+  "post_hls_leaf_replacement": false,
+  "area_timing": "blackbox resource entries are placeholders; ASIC STA required"
+}

@@ -1,0 +1,13 @@
+{
+  "allo_source": "/home/ytsun/repos/aquas/thirdparty/allo/allo/__init__.py",
+  "target": "vitis_hls",
+  "precision": "FP32, separate mul/add",
+  "interface": "ap_memory + ap_ctrl_hs; AXI removed before HLS synthesis",
+  "schedule": [
+    "reorder(\"k\", \"j\")",
+    "buffer_at(s.acc, axis=\"i\")",
+    "pipeline(\"j\", initiation_interval=1)",
+    "pipeline(\"v\", initiation_interval=1)",
+    "partition(s.acc, dim=0)"
+  ]
+}

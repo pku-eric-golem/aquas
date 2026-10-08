@@ -1,0 +1,269 @@
+
+
+================================================================
+== Vitis HLS Report for 'gemm_fp32_Pipeline_l_j_back'
+================================================================
+* Date:           Fri Oct  9 00:19:32 2026
+
+* Version:        2024.1 (Build 5069499 on May 21 2024)
+* Project:        out.prj
+* Solution:       solution1 (Vivado IP Flow Target)
+* Product family: zynq
+* Target device:  xc7z020-clg400-1
+
+
+================================================================
+== Performance Estimates
+================================================================
++ Timing: 
+    * Summary: 
+    +--------+----------+----------+------------+
+    |  Clock |  Target  | Estimated| Uncertainty|
+    +--------+----------+----------+------------+
+    |ap_clk  |  10.00 ns|  4.911 ns|     2.70 ns|
+    +--------+----------+----------+------------+
+
++ Latency: 
+    * Summary: 
+    +---------+---------+----------+----------+-----+-----+-----------------------------------------------+
+    |  Latency (cycles) |  Latency (absolute) |  Interval |                    Pipeline                   |
+    |   min   |   max   |    min   |    max   | min | max |                      Type                     |
+    +---------+---------+----------+----------+-----+-----+-----------------------------------------------+
+    |       10|       10|  0.100 us|  0.100 us|    9|    9|  loop auto-rewind stp(delay=0 clock cycles(s))|
+    +---------+---------+----------+----------+-----+-----+-----------------------------------------------+
+
+    + Detail: 
+        * Instance: 
+        N/A
+
+        * Loop: 
+        +------------+---------+---------+----------+-----------+-----------+------+----------+
+        |            |  Latency (cycles) | Iteration|  Initiation Interval  | Trip |          |
+        |  Loop Name |   min   |   max   |  Latency |  achieved |   target  | Count| Pipelined|
+        +------------+---------+---------+----------+-----------+-----------+------+----------+
+        |- l_j_back  |        8|        8|         2|          1|          1|     8|       yes|
+        +------------+---------+---------+----------+-----------+-----------+------+----------+
+
+
+
+================================================================
+== Utilization Estimates
+================================================================
+* Summary: 
++-----------------+---------+-----+--------+-------+-----+
+|       Name      | BRAM_18K| DSP |   FF   |  LUT  | URAM|
++-----------------+---------+-----+--------+-------+-----+
+|DSP              |        -|    -|       -|      -|    -|
+|Expression       |        -|    -|       0|     28|    -|
+|FIFO             |        -|    -|       -|      -|    -|
+|Instance         |        -|    -|       -|      -|    -|
+|Memory           |        -|    -|       -|      -|    -|
+|Multiplexer      |        -|    -|       0|     36|    -|
+|Register         |        -|    -|      10|      -|    -|
++-----------------+---------+-----+--------+-------+-----+
+|Total            |        0|    0|      10|     64|    0|
++-----------------+---------+-----+--------+-------+-----+
+|Available        |      280|  220|  106400|  53200|    0|
++-----------------+---------+-----+--------+-------+-----+
+|Utilization (%)  |        0|    0|      ~0|     ~0|    0|
++-----------------+---------+-----+--------+-------+-----+
+
++ Detail: 
+    * Instance: 
+    N/A
+
+    * DSP: 
+    N/A
+
+    * Memory: 
+    N/A
+
+    * FIFO: 
+    N/A
+
+    * Expression: 
+    +---------------------+----------+----+---+----+------------+------------+
+    |    Variable Name    | Operation| DSP| FF| LUT| Bitwidth P0| Bitwidth P1|
+    +---------------------+----------+----+---+----+------------+------------+
+    |add_ln64_fu_219_p2   |         +|   0|  0|  13|           4|           1|
+    |icmp_ln64_fu_213_p2  |      icmp|   0|  0|  13|           4|           5|
+    |ap_enable_pp0        |       xor|   0|  0|   2|           1|           2|
+    +---------------------+----------+----+---+----+------------+------------+
+    |Total                |          |   0|  0|  28|           9|           8|
+    +---------------------+----------+----+---+----+------------+------------+
+
+    * Multiplexer: 
+    +---------------------------+----+-----------+-----+-----------+
+    |            Name           | LUT| Input Size| Bits| Total Bits|
+    +---------------------------+----+-----------+-----+-----------+
+    |ap_done_int                |   9|          2|    1|          2|
+    |ap_enable_reg_pp0_iter1    |   9|          2|    1|          2|
+    |ap_sig_allocacmp_j_back_1  |   9|          2|    4|          8|
+    |j_back_fu_176              |   9|          2|    4|          8|
+    +---------------------------+----+-----------+-----+-----------+
+    |Total                      |  36|          8|   10|         20|
+    +---------------------------+----+-----------+-----+-----------+
+
+    * Register: 
+    +-------------------------+---+----+-----+-----------+
+    |           Name          | FF| LUT| Bits| Const Bits|
+    +-------------------------+---+----+-----+-----------+
+    |ap_CS_fsm                |  1|   0|    1|          0|
+    |ap_done_reg              |  1|   0|    1|          0|
+    |ap_enable_reg_pp0_iter1  |  1|   0|    1|          0|
+    |j_back_fu_176            |  4|   0|    4|          0|
+    |trunc_ln64_reg_637       |  3|   0|    3|          0|
+    +-------------------------+---+----+-----+-----------+
+    |Total                    | 10|   0|   10|          0|
+    +-------------------------+---+----+-----+-----------+
+
+
+
+================================================================
+== Interface
+================================================================
+* Summary: 
++-----------------------------+-----+-----+------------+-----------------------------+--------------+
+|          RTL Ports          | Dir | Bits|  Protocol  |        Source Object        |    C Type    |
++-----------------------------+-----+-----+------------+-----------------------------+--------------+
+|ap_clk                       |   in|    1|  ap_ctrl_hs|  gemm_fp32_Pipeline_l_j_back|  return value|
+|ap_rst                       |   in|    1|  ap_ctrl_hs|  gemm_fp32_Pipeline_l_j_back|  return value|
+|ap_start                     |   in|    1|  ap_ctrl_hs|  gemm_fp32_Pipeline_l_j_back|  return value|
+|ap_done                      |  out|    1|  ap_ctrl_hs|  gemm_fp32_Pipeline_l_j_back|  return value|
+|ap_idle                      |  out|    1|  ap_ctrl_hs|  gemm_fp32_Pipeline_l_j_back|  return value|
+|ap_ready                     |  out|    1|  ap_ctrl_hs|  gemm_fp32_Pipeline_l_j_back|  return value|
+|v9_address0                  |  out|    3|   ap_memory|                           v9|         array|
+|v9_ce0                       |  out|    1|   ap_memory|                           v9|         array|
+|v9_q0                        |   in|   32|   ap_memory|                           v9|         array|
+|empty_23                     |   in|    3|     ap_none|                     empty_23|        scalar|
+|empty                        |   in|    1|     ap_none|                        empty|        scalar|
+|mux_case_7266902_out         |  out|   32|      ap_vld|         mux_case_7266902_out|       pointer|
+|mux_case_7266902_out_ap_vld  |  out|    1|      ap_vld|         mux_case_7266902_out|       pointer|
+|mux_case_6265892_out         |  out|   32|      ap_vld|         mux_case_6265892_out|       pointer|
+|mux_case_6265892_out_ap_vld  |  out|    1|      ap_vld|         mux_case_6265892_out|       pointer|
+|mux_case_5264882_out         |  out|   32|      ap_vld|         mux_case_5264882_out|       pointer|
+|mux_case_5264882_out_ap_vld  |  out|    1|      ap_vld|         mux_case_5264882_out|       pointer|
+|mux_case_4263872_out         |  out|   32|      ap_vld|         mux_case_4263872_out|       pointer|
+|mux_case_4263872_out_ap_vld  |  out|    1|      ap_vld|         mux_case_4263872_out|       pointer|
+|mux_case_3262862_out         |  out|   32|      ap_vld|         mux_case_3262862_out|       pointer|
+|mux_case_3262862_out_ap_vld  |  out|    1|      ap_vld|         mux_case_3262862_out|       pointer|
+|mux_case_2261852_out         |  out|   32|      ap_vld|         mux_case_2261852_out|       pointer|
+|mux_case_2261852_out_ap_vld  |  out|    1|      ap_vld|         mux_case_2261852_out|       pointer|
+|mux_case_1260842_out         |  out|   32|      ap_vld|         mux_case_1260842_out|       pointer|
+|mux_case_1260842_out_ap_vld  |  out|    1|      ap_vld|         mux_case_1260842_out|       pointer|
+|mux_case_0259832_out         |  out|   32|      ap_vld|         mux_case_0259832_out|       pointer|
+|mux_case_0259832_out_ap_vld  |  out|    1|      ap_vld|         mux_case_0259832_out|       pointer|
+|mux_case_7257822_out         |  out|   32|      ap_vld|         mux_case_7257822_out|       pointer|
+|mux_case_7257822_out_ap_vld  |  out|    1|      ap_vld|         mux_case_7257822_out|       pointer|
+|mux_case_6256812_out         |  out|   32|      ap_vld|         mux_case_6256812_out|       pointer|
+|mux_case_6256812_out_ap_vld  |  out|    1|      ap_vld|         mux_case_6256812_out|       pointer|
+|mux_case_5255802_out         |  out|   32|      ap_vld|         mux_case_5255802_out|       pointer|
+|mux_case_5255802_out_ap_vld  |  out|    1|      ap_vld|         mux_case_5255802_out|       pointer|
+|mux_case_4254792_out         |  out|   32|      ap_vld|         mux_case_4254792_out|       pointer|
+|mux_case_4254792_out_ap_vld  |  out|    1|      ap_vld|         mux_case_4254792_out|       pointer|
+|mux_case_3253782_out         |  out|   32|      ap_vld|         mux_case_3253782_out|       pointer|
+|mux_case_3253782_out_ap_vld  |  out|    1|      ap_vld|         mux_case_3253782_out|       pointer|
+|mux_case_2252772_out         |  out|   32|      ap_vld|         mux_case_2252772_out|       pointer|
+|mux_case_2252772_out_ap_vld  |  out|    1|      ap_vld|         mux_case_2252772_out|       pointer|
+|mux_case_1251762_out         |  out|   32|      ap_vld|         mux_case_1251762_out|       pointer|
+|mux_case_1251762_out_ap_vld  |  out|    1|      ap_vld|         mux_case_1251762_out|       pointer|
+|mux_case_0250752_out         |  out|   32|      ap_vld|         mux_case_0250752_out|       pointer|
+|mux_case_0250752_out_ap_vld  |  out|    1|      ap_vld|         mux_case_0250752_out|       pointer|
+|mux_case_7248742_out         |  out|   32|      ap_vld|         mux_case_7248742_out|       pointer|
+|mux_case_7248742_out_ap_vld  |  out|    1|      ap_vld|         mux_case_7248742_out|       pointer|
+|mux_case_6247732_out         |  out|   32|      ap_vld|         mux_case_6247732_out|       pointer|
+|mux_case_6247732_out_ap_vld  |  out|    1|      ap_vld|         mux_case_6247732_out|       pointer|
+|mux_case_5246722_out         |  out|   32|      ap_vld|         mux_case_5246722_out|       pointer|
+|mux_case_5246722_out_ap_vld  |  out|    1|      ap_vld|         mux_case_5246722_out|       pointer|
+|mux_case_4245712_out         |  out|   32|      ap_vld|         mux_case_4245712_out|       pointer|
+|mux_case_4245712_out_ap_vld  |  out|    1|      ap_vld|         mux_case_4245712_out|       pointer|
+|mux_case_3244702_out         |  out|   32|      ap_vld|         mux_case_3244702_out|       pointer|
+|mux_case_3244702_out_ap_vld  |  out|    1|      ap_vld|         mux_case_3244702_out|       pointer|
+|mux_case_2243692_out         |  out|   32|      ap_vld|         mux_case_2243692_out|       pointer|
+|mux_case_2243692_out_ap_vld  |  out|    1|      ap_vld|         mux_case_2243692_out|       pointer|
+|mux_case_1242682_out         |  out|   32|      ap_vld|         mux_case_1242682_out|       pointer|
+|mux_case_1242682_out_ap_vld  |  out|    1|      ap_vld|         mux_case_1242682_out|       pointer|
+|mux_case_0241672_out         |  out|   32|      ap_vld|         mux_case_0241672_out|       pointer|
+|mux_case_0241672_out_ap_vld  |  out|    1|      ap_vld|         mux_case_0241672_out|       pointer|
+|mux_case_7239662_out         |  out|   32|      ap_vld|         mux_case_7239662_out|       pointer|
+|mux_case_7239662_out_ap_vld  |  out|    1|      ap_vld|         mux_case_7239662_out|       pointer|
+|mux_case_6238652_out         |  out|   32|      ap_vld|         mux_case_6238652_out|       pointer|
+|mux_case_6238652_out_ap_vld  |  out|    1|      ap_vld|         mux_case_6238652_out|       pointer|
+|mux_case_5237642_out         |  out|   32|      ap_vld|         mux_case_5237642_out|       pointer|
+|mux_case_5237642_out_ap_vld  |  out|    1|      ap_vld|         mux_case_5237642_out|       pointer|
+|mux_case_4236632_out         |  out|   32|      ap_vld|         mux_case_4236632_out|       pointer|
+|mux_case_4236632_out_ap_vld  |  out|    1|      ap_vld|         mux_case_4236632_out|       pointer|
+|mux_case_3235622_out         |  out|   32|      ap_vld|         mux_case_3235622_out|       pointer|
+|mux_case_3235622_out_ap_vld  |  out|    1|      ap_vld|         mux_case_3235622_out|       pointer|
+|mux_case_2234612_out         |  out|   32|      ap_vld|         mux_case_2234612_out|       pointer|
+|mux_case_2234612_out_ap_vld  |  out|    1|      ap_vld|         mux_case_2234612_out|       pointer|
+|mux_case_1233602_out         |  out|   32|      ap_vld|         mux_case_1233602_out|       pointer|
+|mux_case_1233602_out_ap_vld  |  out|    1|      ap_vld|         mux_case_1233602_out|       pointer|
+|mux_case_0232592_out         |  out|   32|      ap_vld|         mux_case_0232592_out|       pointer|
+|mux_case_0232592_out_ap_vld  |  out|    1|      ap_vld|         mux_case_0232592_out|       pointer|
+|mux_case_7230582_out         |  out|   32|      ap_vld|         mux_case_7230582_out|       pointer|
+|mux_case_7230582_out_ap_vld  |  out|    1|      ap_vld|         mux_case_7230582_out|       pointer|
+|mux_case_6229572_out         |  out|   32|      ap_vld|         mux_case_6229572_out|       pointer|
+|mux_case_6229572_out_ap_vld  |  out|    1|      ap_vld|         mux_case_6229572_out|       pointer|
+|mux_case_5228562_out         |  out|   32|      ap_vld|         mux_case_5228562_out|       pointer|
+|mux_case_5228562_out_ap_vld  |  out|    1|      ap_vld|         mux_case_5228562_out|       pointer|
+|mux_case_4227552_out         |  out|   32|      ap_vld|         mux_case_4227552_out|       pointer|
+|mux_case_4227552_out_ap_vld  |  out|    1|      ap_vld|         mux_case_4227552_out|       pointer|
+|mux_case_3226542_out         |  out|   32|      ap_vld|         mux_case_3226542_out|       pointer|
+|mux_case_3226542_out_ap_vld  |  out|    1|      ap_vld|         mux_case_3226542_out|       pointer|
+|mux_case_2225532_out         |  out|   32|      ap_vld|         mux_case_2225532_out|       pointer|
+|mux_case_2225532_out_ap_vld  |  out|    1|      ap_vld|         mux_case_2225532_out|       pointer|
+|mux_case_1224522_out         |  out|   32|      ap_vld|         mux_case_1224522_out|       pointer|
+|mux_case_1224522_out_ap_vld  |  out|    1|      ap_vld|         mux_case_1224522_out|       pointer|
+|mux_case_0223512_out         |  out|   32|      ap_vld|         mux_case_0223512_out|       pointer|
+|mux_case_0223512_out_ap_vld  |  out|    1|      ap_vld|         mux_case_0223512_out|       pointer|
+|mux_case_7221502_out         |  out|   32|      ap_vld|         mux_case_7221502_out|       pointer|
+|mux_case_7221502_out_ap_vld  |  out|    1|      ap_vld|         mux_case_7221502_out|       pointer|
+|mux_case_6220492_out         |  out|   32|      ap_vld|         mux_case_6220492_out|       pointer|
+|mux_case_6220492_out_ap_vld  |  out|    1|      ap_vld|         mux_case_6220492_out|       pointer|
+|mux_case_5219482_out         |  out|   32|      ap_vld|         mux_case_5219482_out|       pointer|
+|mux_case_5219482_out_ap_vld  |  out|    1|      ap_vld|         mux_case_5219482_out|       pointer|
+|mux_case_4218472_out         |  out|   32|      ap_vld|         mux_case_4218472_out|       pointer|
+|mux_case_4218472_out_ap_vld  |  out|    1|      ap_vld|         mux_case_4218472_out|       pointer|
+|mux_case_3217462_out         |  out|   32|      ap_vld|         mux_case_3217462_out|       pointer|
+|mux_case_3217462_out_ap_vld  |  out|    1|      ap_vld|         mux_case_3217462_out|       pointer|
+|mux_case_2216452_out         |  out|   32|      ap_vld|         mux_case_2216452_out|       pointer|
+|mux_case_2216452_out_ap_vld  |  out|    1|      ap_vld|         mux_case_2216452_out|       pointer|
+|mux_case_1215442_out         |  out|   32|      ap_vld|         mux_case_1215442_out|       pointer|
+|mux_case_1215442_out_ap_vld  |  out|    1|      ap_vld|         mux_case_1215442_out|       pointer|
+|mux_case_0214432_out         |  out|   32|      ap_vld|         mux_case_0214432_out|       pointer|
+|mux_case_0214432_out_ap_vld  |  out|    1|      ap_vld|         mux_case_0214432_out|       pointer|
+|mux_case_7212422_out         |  out|   32|      ap_vld|         mux_case_7212422_out|       pointer|
+|mux_case_7212422_out_ap_vld  |  out|    1|      ap_vld|         mux_case_7212422_out|       pointer|
+|mux_case_6211412_out         |  out|   32|      ap_vld|         mux_case_6211412_out|       pointer|
+|mux_case_6211412_out_ap_vld  |  out|    1|      ap_vld|         mux_case_6211412_out|       pointer|
+|mux_case_5210402_out         |  out|   32|      ap_vld|         mux_case_5210402_out|       pointer|
+|mux_case_5210402_out_ap_vld  |  out|    1|      ap_vld|         mux_case_5210402_out|       pointer|
+|mux_case_4209392_out         |  out|   32|      ap_vld|         mux_case_4209392_out|       pointer|
+|mux_case_4209392_out_ap_vld  |  out|    1|      ap_vld|         mux_case_4209392_out|       pointer|
+|mux_case_3208382_out         |  out|   32|      ap_vld|         mux_case_3208382_out|       pointer|
+|mux_case_3208382_out_ap_vld  |  out|    1|      ap_vld|         mux_case_3208382_out|       pointer|
+|mux_case_2207372_out         |  out|   32|      ap_vld|         mux_case_2207372_out|       pointer|
+|mux_case_2207372_out_ap_vld  |  out|    1|      ap_vld|         mux_case_2207372_out|       pointer|
+|mux_case_1206362_out         |  out|   32|      ap_vld|         mux_case_1206362_out|       pointer|
+|mux_case_1206362_out_ap_vld  |  out|    1|      ap_vld|         mux_case_1206362_out|       pointer|
+|mux_case_0205352_out         |  out|   32|      ap_vld|         mux_case_0205352_out|       pointer|
+|mux_case_0205352_out_ap_vld  |  out|    1|      ap_vld|         mux_case_0205352_out|       pointer|
+|mux_case_7341_out            |  out|   32|      ap_vld|            mux_case_7341_out|       pointer|
+|mux_case_7341_out_ap_vld     |  out|    1|      ap_vld|            mux_case_7341_out|       pointer|
+|mux_case_6331_out            |  out|   32|      ap_vld|            mux_case_6331_out|       pointer|
+|mux_case_6331_out_ap_vld     |  out|    1|      ap_vld|            mux_case_6331_out|       pointer|
+|mux_case_5321_out            |  out|   32|      ap_vld|            mux_case_5321_out|       pointer|
+|mux_case_5321_out_ap_vld     |  out|    1|      ap_vld|            mux_case_5321_out|       pointer|
+|mux_case_4311_out            |  out|   32|      ap_vld|            mux_case_4311_out|       pointer|
+|mux_case_4311_out_ap_vld     |  out|    1|      ap_vld|            mux_case_4311_out|       pointer|
+|mux_case_3301_out            |  out|   32|      ap_vld|            mux_case_3301_out|       pointer|
+|mux_case_3301_out_ap_vld     |  out|    1|      ap_vld|            mux_case_3301_out|       pointer|
+|mux_case_2291_out            |  out|   32|      ap_vld|            mux_case_2291_out|       pointer|
+|mux_case_2291_out_ap_vld     |  out|    1|      ap_vld|            mux_case_2291_out|       pointer|
+|mux_case_1281_out            |  out|   32|      ap_vld|            mux_case_1281_out|       pointer|
+|mux_case_1281_out_ap_vld     |  out|    1|      ap_vld|            mux_case_1281_out|       pointer|
+|mux_case_0271_out            |  out|   32|      ap_vld|            mux_case_0271_out|       pointer|
+|mux_case_0271_out_ap_vld     |  out|    1|      ap_vld|            mux_case_0271_out|       pointer|
++-----------------------------+-----+-----+------------+-----------------------------+--------------+
+

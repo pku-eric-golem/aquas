@@ -1,0 +1,2 @@
+NATIVE HARDFLOAT PASS checked=6396 latency=3 II=1 stalls=3256 resets=29
+HLS C MODEL PASS checked=3072 (including in-place accumulation)

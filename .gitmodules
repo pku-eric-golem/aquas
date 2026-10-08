@@ -5,3 +5,6 @@
 	path = thirdparty/chipyard
 	url = git@github.com:pku-eric-golem/chipyard.git
 	branch = float
+[submodule "thirdparty/allo"]
+	path = thirdparty/allo
+	url = git@github.com:pku-eric-golem/allo.git

@@ -1,0 +1,219 @@
+{
+  "passed": true,
+  "precision": "FP32",
+  "rounding": "RNE, separate multiply/add",
+  "flow": "Allo -> Vitis HLS 2024.1 -> ap_memory/ap_ctrl_hs -> handwritten SV RoCC adapter -> APSRocketConfig",
+  "allo_commit": "3f2ea5d45e3b9e4d100a7cda7ac694443da6611b",
+  "axi_generated": true,
+  "native_hls_rtl_unchanged": true,
+  "fp_leaves": {
+    "replacement": "HardFloat synthesizable RTL, RNE, gradual underflow",
+    "reason": "Xilinx floating_point implementation is encrypted and unavailable to Verilator",
+    "unmodified_hls_verilog_sha256": {
+      "gemm_fp32_fmul_32ns_32ns_32_4_max_dsp_1.v": "5b2b8308a730009cb4aa91645c5ea690935169f3859bb9076514b64405fec0e2",
+      "gemm_fp32_gemm_fp32_Pipeline_l_j_back.v": "4779d40b8c9b599c02574a57b8cc1563d76684a5c1953c3cce5ea21395477555",
+      "gemm_fp32_sparsemux_17_3_32_1_1.v": "8a79bf90589b196a53c4249cf138369f4bf3375e9edb298f27e3fbf274d766af",
+      "gemm_fp32_gemm_fp32_Pipeline_l_j_init.v": "582889e017ddc9cb5055ce025283c71288890fa798f20f41c3c96a6c702f80f9",
+      "gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v": "b5d78b204c27129f98496dc12d9aa788a203574e4d54ea79a0c31e87a5d8500a",
+      "gemm_fp32_flow_control_loop_pipe_sequential_init.v": "9f032034e10c96acf110954fce78dfdc2352f03adda9bb855bc00a72e1abfbbd",
+      "gemm_fp32_fadd_32ns_32ns_32_5_full_dsp_1.v": "76c2874acc0e8f94d9d32730dc1d21caa25e0add80ebc221b2ca0678541a9fd3",
+      "gemm_fp32_v9_RAM_AUTO_1R1W.v": "b7866fe55f8f7544576d4e218f8ca5b09045b3e125c1b69a47d5893a63c77409",
+      "gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v": "4ba36c72be6595815150c6aab7797294eecf246dbe9f899e467e89d3ec7f101a",
+      "gemm_fp32.v": "1d50847fd3380b4b08340980743535a24c3287ccaeb1036c1be97d97d124129b"
+    },
+    "leaves": [
+      {
+        "module": "gemm_fp32_fmul_32ns_32ns_32_4_max_dsp_1_ip",
+        "enabled_clock_latency": 2,
+        "original_contract": "hls_native/out.prj/solution1/syn/verilog/gemm_fp32_fmul_32ns_32ns_32_4_max_dsp_1_ip.tcl"
+      },
+      {
+        "module": "gemm_fp32_fadd_32ns_32ns_32_5_full_dsp_1_ip",
+        "enabled_clock_latency": 3,
+        "original_contract": "hls_native/out.prj/solution1/syn/verilog/gemm_fp32_fadd_32ns_32ns_32_5_full_dsp_1_ip.tcl"
+      }
+    ]
+  },
+  "host_simulator": {
+    "generated_cpp_unchanged": true,
+    "generated_cpp_files": 158,
+    "optimization": "/usr/bin/clang++ -O1 C++20; generated model unchanged",
+    "simulator_sha256": "3ff24b66576cced3e8be8b1af1381efe4a75b626a98650569b253c7012cf8e1b",
+    "model_rtl_filelist": "aps_config.yaml"
+  },
+  "optimization": {
+    "official_documents": [
+      "https://cornell-zhang.github.io/allo/gallery/tutorial_02_vhls.html",
+      "https://cornell-zhang.github.io/allo/api/index.html"
+    ],
+    "schedule": [
+      "reorder(\"k\", \"j\")",
+      "buffer_at(s.acc, axis=\"i\")",
+      "pipeline(\"j\", initiation_interval=1)",
+      "pipeline(\"v\", initiation_interval=1)",
+      "partition(s.acc, dim=0)"
+    ],
+    "hls_profiles": {
+      "serial": {
+        "latency": 6289,
+        "interval": 6290,
+        "vendor_resource_estimates": {
+          "DSP": 5,
+          "FF": 603,
+          "LUT": 1041,
+          "BRAM_18K": 0,
+          "URAM": 0
+        }
+      },
+      "interleaved": {
+        "latency": 990,
+        "interval": 991,
+        "vendor_resource_estimates": {
+          "BRAM_18K": 1,
+          "DSP": 5,
+          "FF": 953,
+          "LUT": 1606,
+          "URAM": 0
+        }
+      },
+      "interleaved_partitioned": {
+        "latency": 909,
+        "interval": 910,
+        "vendor_resource_estimates": {
+          "BRAM_18K": 0,
+          "DSP": 5,
+          "FF": 3056,
+          "LUT": 2450,
+          "URAM": 0
+        }
+      }
+    },
+    "achieved_pipeline_ii": [
+      [
+        "1",
+        "1",
+        "1",
+        "l_j_init"
+      ],
+      [
+        "1",
+        "1",
+        "14",
+        "l_S_k_0_k_l_j"
+      ],
+      [
+        "1",
+        "1",
+        "2",
+        "l_j_back"
+      ],
+      [
+        "1",
+        "1",
+        "11",
+        "l_outputs_u_l_v"
+      ]
+    ],
+    "hls_latency_speedup": 6.918591859185919,
+    "soc_compute_speedup": 7.1739624786810685,
+    "soc_total_speedup": 5.736153510684693,
+    "baseline_benchmark": [
+      {
+        "trial": 0,
+        "engine": "software",
+        "cycles": 16553
+      },
+      {
+        "trial": 0,
+        "engine": "isax",
+        "load": 1555,
+        "compute": 50489,
+        "store": 606,
+        "total": 52650
+      },
+      {
+        "trial": 1,
+        "engine": "isax",
+        "load": 1505,
+        "compute": 50463,
+        "store": 606,
+        "total": 52574
+      },
+      {
+        "trial": 1,
+        "engine": "software",
+        "cycles": 15813
+      }
+    ],
+    "fp_reduction_order_preserved": true,
+    "resource_caveat": "HLS vendor estimates only; HardFloat replacements not placed or timed"
+  },
+  "checks": {
+    "allo_llvm_outputs": 512,
+    "standalone_rtl_outputs": 3072,
+    "rocket_benchmark_outputs": 2048,
+    "rocket_functional_outputs": 2048,
+    "response_backpressure": true,
+    "mid_execution_reset": true,
+    "c_accumulation_and_in_place_writeback": true,
+    "dma_padding_and_guards": true,
+    "corrupted_golden_rejected": true
+  },
+  "benchmark": [
+    {
+      "trial": 0,
+      "engine": "software",
+      "cycles": 16553
+    },
+    {
+      "trial": 0,
+      "engine": "isax",
+      "load": 1555,
+      "compute": 7049,
+      "store": 606,
+      "total": 9210
+    },
+    {
+      "trial": 1,
+      "engine": "isax",
+      "load": 1505,
+      "compute": 7023,
+      "store": 606,
+      "total": 9134
+    },
+    {
+      "trial": 1,
+      "engine": "software",
+      "cycles": 15813
+    }
+  ],
+  "software_to_isax_cycle_ratio": 1.7643916266899258,
+  "logs": {
+    "benchmark": "soc/benchmark.log",
+    "functional": "soc/test.log",
+    "negative": "soc/negative.log",
+    "standalone": "wrapper-test.log"
+  },
+  "timing_caveat": "Cycle simulation only; no ASIC/FPGA timing closure or vendor encrypted FP equivalence claim",
+  "files_sha256": {
+    "gemm.py": "67cc46bb9814db492282fc64fa00302641f32c66f0a7b9e5b1be657fe6b486a7",
+    "schedule.py": "0b64cfff94e9e9ff1007ac62da95163f0bb1373775a9aabc7aaf745a3f9d37a1",
+    "main.sv": "ac040d2568eafaa9d876ae1fb00155631f0900e9e279619966c7799aefa4452d",
+    "aps_config.yaml": "a2806eadb8a35113a32ce0a6b4d9f046cb0acd34e78c5e679d5def536d577b9a",
+    "software/benchmark_fp32.c": "1e2926b623aa461275fd2212a23b63607493a049ec839e944dba6e98642ec698",
+    "software/test_gemm.c": "7f3581298be32a4447167bbea4d6fb4094fdee700130e775c18e1adab1fade18",
+    "rtl/HardFloatLeaves.sv": "82c1126685e5802531817b4eec057eea3f45d93cf3c59d175484da7ab1cdef81",
+    "rtl/gemm_fp32.v": "1d50847fd3380b4b08340980743535a24c3287ccaeb1036c1be97d97d124129b",
+    "rtl/gemm_fp32_fadd_32ns_32ns_32_5_full_dsp_1.v": "76c2874acc0e8f94d9d32730dc1d21caa25e0add80ebc221b2ca0678541a9fd3",
+    "rtl/gemm_fp32_fadd_32ns_32ns_32_5_full_dsp_1_ip.sv": "367066ba1c57fe41b94d721998d7953334a27c2a2faf71168c19fda8434a22fa",
+    "rtl/gemm_fp32_flow_control_loop_pipe_sequential_init.v": "9f032034e10c96acf110954fce78dfdc2352f03adda9bb855bc00a72e1abfbbd",
+    "rtl/gemm_fp32_fmul_32ns_32ns_32_4_max_dsp_1.v": "5b2b8308a730009cb4aa91645c5ea690935169f3859bb9076514b64405fec0e2",
+    "rtl/gemm_fp32_fmul_32ns_32ns_32_4_max_dsp_1_ip.sv": "f23ef7f53f44b25e542547553bb4362436f35c3e51392e89507a7852d0fc960a",
+    "rtl/gemm_fp32_gemm_fp32_Pipeline_l_S_k_0_k_l_j.v": "4ba36c72be6595815150c6aab7797294eecf246dbe9f899e467e89d3ec7f101a",
+    "rtl/gemm_fp32_gemm_fp32_Pipeline_l_j_back.v": "4779d40b8c9b599c02574a57b8cc1563d76684a5c1953c3cce5ea21395477555",
+    "rtl/gemm_fp32_gemm_fp32_Pipeline_l_j_init.v": "582889e017ddc9cb5055ce025283c71288890fa798f20f41c3c96a6c702f80f9",
+    "rtl/gemm_fp32_gemm_fp32_Pipeline_l_outputs_u_l_v.v": "b5d78b204c27129f98496dc12d9aa788a203574e4d54ea79a0c31e87a5d8500a",
+    "rtl/gemm_fp32_sparsemux_17_3_32_1_1.v": "8a79bf90589b196a53c4249cf138369f4bf3375e9edb298f27e3fbf274d766af",
+    "rtl/gemm_fp32_v9_RAM_AUTO_1R1W.v": "b7866fe55f8f7544576d4e218f8ca5b09045b3e125c1b69a47d5893a63c77409"
+  }
+}

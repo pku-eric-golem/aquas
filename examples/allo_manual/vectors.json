@@ -1,0 +1,7 @@
+{
+  "seed": "0xA110F032",
+  "precision": "FP32",
+  "rounding": "RNE, separate multiply/add",
+  "test_tiles": 16,
+  "benchmark_tiles": 8
+}

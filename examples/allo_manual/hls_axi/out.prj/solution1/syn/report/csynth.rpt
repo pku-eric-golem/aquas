@@ -1,0 +1,240 @@
+
+
+================================================================
+== Synthesis Summary Report of 'gemm_fp32'
+================================================================
++ General Information: 
+    * Date:           Fri Oct  9 00:19:33 2026
+    * Version:        2024.1 (Build 5069499 on May 21 2024)
+    * Project:        out.prj
+    * Solution:       solution1 (Vivado IP Flow Target)
+    * Product family: zynq
+    * Target device:  xc7z020-clg400-1
+    
+
++ Performance & Resource Estimates: 
+    
+    PS: '+' for module; 'o' for loop; '*' for dataflow
+    +---------------------------------------+------+------+---------+-----------+----------+---------+------+----------+--------+----+------------+------------+-----+
+    |                Modules                | Issue|      | Latency |  Latency  | Iteration|         | Trip |          |        |    |            |            |     |
+    |                & Loops                | Type | Slack| (cycles)|    (ns)   |  Latency | Interval| Count| Pipelined|  BRAM  | DSP|     FF     |     LUT    | URAM|
+    +---------------------------------------+------+------+---------+-----------+----------+---------+------+----------+--------+----+------------+------------+-----+
+    |+ gemm_fp32                            |     -|  0.00|      969|  9.690e+03|         -|      970|     -|        no|  8 (2%)|   -|   7210 (6%)|  5473 (10%)|    -|
+    | + gemm_fp32_Pipeline_l_outputs_u_l_v  |     -|  0.00|       87|    870.000|         -|       87|     -|        no|       -|   -|  1029 (~0%)|    839 (1%)|    -|
+    |  o l_outputs_u_l_v                    |     -|  7.30|       85|    850.000|        23|        1|    64|       yes|       -|   -|           -|           -|    -|
+    |   + hf_add_f32                        |     -|  7.30|        3|     30.000|         -|        1|     -|  yes(flp)|       -|   -|           -|           -|    -|
+    | o l_mac_i                             |     -|  7.30|      880|  8.800e+03|       110|        -|     8|        no|       -|   -|           -|           -|    -|
+    |  + gemm_fp32_Pipeline_l_j_init        |     -|  1.66|       10|    100.000|         -|       10|     -|        no|       -|   -|     6 (~0%)|    53 (~0%)|    -|
+    |   o l_j_init                          |     -|  7.30|        8|     80.000|         1|        1|     8|       yes|       -|   -|           -|           -|    -|
+    |  + gemm_fp32_Pipeline_l_S_k_0_k_l_j   |     -|  0.00|       84|    840.000|         -|       84|     -|        no|       -|   -|   602 (~0%)|   428 (~0%)|    -|
+    |   o l_S_k_0_k_l_j                     |     -|  7.30|       82|    820.000|        20|        1|    64|       yes|       -|   -|           -|           -|    -|
+    |    + hf_mul_f32                       |     -|  7.30|        3|     30.000|         -|        1|     -|  yes(flp)|       -|   -|           -|           -|    -|
+    |    + hf_add_f32                       |     -|  7.30|        3|     30.000|         -|        1|     -|  yes(flp)|       -|   -|           -|           -|    -|
+    |  + gemm_fp32_Pipeline_l_j_back        |     -|  2.39|       10|    100.000|         -|       10|     -|        no|       -|   -|    10 (~0%)|    64 (~0%)|    -|
+    |   o l_j_back                          |     -|  7.30|        8|     80.000|         2|        1|     8|       yes|       -|   -|           -|           -|    -|
+    +---------------------------------------+------+------+---------+-----------+----------+---------+------+----------+--------+----+------------+------------+-----+
+
+
+================================================================
+== HW Interfaces
+================================================================
+* M_AXI
++-------------+------------+------------+---------------+---------+--------+----------+-----------+--------------+--------------+-------------+-------------+-------------------+
+| Interface   | Read/Write | Data Width | Address Width | Latency | Offset | Register | Max Widen | Max Read     | Max Write    | Num Read    | Num Write   | Resource Estimate |
+|             |            | (SW->HW)   |               |         |        |          | Bitwidth  | Burst Length | Burst Length | Outstanding | Outstanding |                   |
++-------------+------------+------------+---------------+---------+--------+----------+-----------+--------------+--------------+-------------+-------------+-------------------+
+| m_axi_gmem0 | READ_ONLY  | 32 -> 32   | 64            | 0       | slave  | 0        | 0         | 16           | 16           | 16          | 16          | BRAM=2            |
+| m_axi_gmem1 | READ_ONLY  | 32 -> 32   | 64            | 0       | slave  | 0        | 0         | 16           | 16           | 16          | 16          | BRAM=2            |
+| m_axi_gmem2 | READ_ONLY  | 32 -> 32   | 64            | 0       | slave  | 0        | 0         | 16           | 16           | 16          | 16          | BRAM=2            |
+| m_axi_gmem3 | WRITE_ONLY | 32 -> 32   | 64            | 0       | slave  | 0        | 0         | 16           | 16           | 16          | 16          | BRAM=2            |
++-------------+------------+------------+---------------+---------+--------+----------+-----------+--------------+--------------+-------------+-------------+-------------------+
+
+* S_AXILITE Interfaces
++---------------+------------+---------------+--------+----------+
+| Interface     | Data Width | Address Width | Offset | Register |
++---------------+------------+---------------+--------+----------+
+| s_axi_control | 32         | 6             | 16     | 0        |
++---------------+------------+---------------+--------+----------+
+
+* S_AXILITE Registers
++---------------+----------+--------+-------+--------+-------------------+
+| Interface     | Register | Offset | Width | Access | Description       |
++---------------+----------+--------+-------+--------+-------------------+
+| s_axi_control | v0_1     | 0x10   | 32    | W      | Data signal of v0 |
+| s_axi_control | v0_2     | 0x14   | 32    | W      | Data signal of v0 |
+| s_axi_control | v1_1     | 0x1c   | 32    | W      | Data signal of v1 |
+| s_axi_control | v1_2     | 0x20   | 32    | W      | Data signal of v1 |
+| s_axi_control | v2_1     | 0x28   | 32    | W      | Data signal of v2 |
+| s_axi_control | v2_2     | 0x2c   | 32    | W      | Data signal of v2 |
+| s_axi_control | v4_1     | 0x34   | 32    | W      | Data signal of v4 |
+| s_axi_control | v4_2     | 0x38   | 32    | W      | Data signal of v4 |
++---------------+----------+--------+-------+--------+-------------------+
+
+* Other Ports
++------+---------+-----------+----------+
+| Port | Mode    | Direction | Bitwidth |
++------+---------+-----------+----------+
+| v3   | ap_none | in        | 8        |
++------+---------+-----------+----------+
+
+* TOP LEVEL CONTROL
++-----------+------------+-----------------------------------+
+| Interface | Type       | Ports                             |
++-----------+------------+-----------------------------------+
+| ap_clk    | clock      | ap_clk                            |
+| ap_rst_n  | reset      | ap_rst_n                          |
+| ap_ctrl   | ap_ctrl_hs | ap_done ap_idle ap_ready ap_start |
++-----------+------------+-----------------------------------+
+
+
+================================================================
+== SW I/O Information
+================================================================
+* Top Function Arguments
++----------+-----------+---------------+
+| Argument | Direction | Datatype      |
++----------+-----------+---------------+
+| v0       | in        | float*        |
+| v1       | in        | float*        |
+| v2       | in        | float*        |
+| v3       | in        | unsigned char |
+| v4       | out       | float*        |
++----------+-----------+---------------+
+
+* SW-to-HW Mapping
++----------+---------------+-----------+----------+--------------------------------+
+| Argument | HW Interface  | HW Type   | HW Usage | HW Info                        |
++----------+---------------+-----------+----------+--------------------------------+
+| v0       | m_axi_gmem0   | interface |          | channel=0                      |
+| v0       | s_axi_control | register  | offset   | name=v0_1 offset=0x10 range=32 |
+| v0       | s_axi_control | register  | offset   | name=v0_2 offset=0x14 range=32 |
+| v1       | m_axi_gmem1   | interface |          | channel=0                      |
+| v1       | s_axi_control | register  | offset   | name=v1_1 offset=0x1c range=32 |
+| v1       | s_axi_control | register  | offset   | name=v1_2 offset=0x20 range=32 |
+| v2       | m_axi_gmem2   | interface |          | channel=0                      |
+| v2       | s_axi_control | register  | offset   | name=v2_1 offset=0x28 range=32 |
+| v2       | s_axi_control | register  | offset   | name=v2_2 offset=0x2c range=32 |
+| v3       | v3            | port      |          |                                |
+| v4       | m_axi_gmem3   | interface |          | channel=0                      |
+| v4       | s_axi_control | register  | offset   | name=v4_1 offset=0x34 range=32 |
+| v4       | s_axi_control | register  | offset   | name=v4_2 offset=0x38 range=32 |
++----------+---------------+-----------+----------+--------------------------------+
+
+
+================================================================
+== M_AXI Burst Information
+================================================================
+ Note: All burst requests might be further partitioned into multiple requests during RTL generation based on max_read_burst_length or max_write_burst_length settings.
+
+* All M_AXI Variable Accesses
++--------------+----------+------------------+-----------+--------------+--------+-------------+------------------+------------+---------------------------------------------------------------------------------------------------------+
+| HW Interface | Variable | Access Location  | Direction | Burst Status | Length | Loop        | Loop Location    | Resolution | Problem                                                                                                 |
++--------------+----------+------------------+-----------+--------------+--------+-------------+------------------+------------+---------------------------------------------------------------------------------------------------------+
+| m_axi_gmem0  |          | kernel.cpp:48:16 | read      | Fail         |        |             |                  | 214-224    | Could not burst due to multiple potential reads to the same bundle in the same region.                  |
+| m_axi_gmem0  | v0       | kernel.cpp:48:16 | read      | Widen Fail   |        | l_S_k_0_k   | kernel.cpp:48:16 | 214-353    | Could not widen since type float size is greater than or equal to the max_widen_bitwidth threshold of 0 |
+| m_axi_gmem0  | v0       | kernel.cpp:48:16 | read      | Fail         |        |             |                  | 214-231    | Access is clobbered by v15                                                                              |
+| m_axi_gmem0  | v0       | kernel.cpp:48:16 | read      | Inferred     | 8      | l_S_k_0_k   | kernel.cpp:48:16 |            |                                                                                                         |
+| m_axi_gmem1  | v1       | kernel.cpp:52:21 | read      | Fail         |        | l_j         | kernel.cpp:49:12 | 214-230    | Stride is incompatible                                                                                  |
+| m_axi_gmem2  |          | kernel.cpp:70:16 | read      | Fail         |        |             |                  | 214-224    | Could not burst due to multiple potential reads to the same bundle in the same region.                  |
+| m_axi_gmem2  | v2       | kernel.cpp:78:21 | read      | Inferred     | 64     | l_outputs_u | kernel.cpp:70:16 |            |                                                                                                         |
+| m_axi_gmem3  |          | kernel.cpp:70:16 | write     | Fail         |        |             |                  | 214-224    | Could not burst due to multiple potential writes to the same bundle in the same region.                 |
+| m_axi_gmem3  | v4       | kernel.cpp:85:25 | write     | Widen Fail   |        | l_v         | kernel.cpp:71:10 | 214-353    | Could not widen since type float size is greater than or equal to the max_widen_bitwidth threshold of 0 |
+| m_axi_gmem3  | v4       | kernel.cpp:85:25 | write     | Inferred     | 64     | l_outputs_u | kernel.cpp:70:16 |            |                                                                                                         |
++--------------+----------+------------------+-----------+--------------+--------+-------------+------------------+------------+---------------------------------------------------------------------------------------------------------+
+
+    * Resolution URL: docs.xilinx.com/access/sources/dita/topic?Doc_Version=2024.1%20English&url=ug1448-hls-guidance&resourceid=XXX-YYY.html (replace XXX-YYY with column value)
+
+================================================================
+== Bind Op Report
+================================================================
++---------------------------------------+-----+--------+---------------+-----------+----------+---------+
+| Name                                  | DSP | Pragma | Variable      | Op        | Impl     | Latency |
++---------------------------------------+-----+--------+---------------+-----------+----------+---------+
+| + gemm_fp32                           | 0   |        |               |           |          |         |
+|   icmp_ln42_fu_892_p2                 |     |        | icmp_ln42     | seteq     | auto     | 0       |
+|   add_ln42_fu_898_p2                  |     |        | add_ln42      | add       | fabric   | 0       |
+|   add_ln43_fu_920_p2                  |     |        | add_ln43      | add       | fabric   | 0       |
+|   empty_fu_935_p2                     |     |        | empty         | seteq     | auto     | 0       |
+|   v26_fu_1202_p2                      |     |        | v26           | seteq     | auto     | 0       |
+|  + gemm_fp32_Pipeline_l_j_init        | 0   |        |               |           |          |         |
+|    icmp_ln44_fu_54_p2                 |     |        | icmp_ln44     | seteq     | auto     | 0       |
+|    add_ln44_fu_60_p2                  |     |        | add_ln44      | add       | fabric   | 0       |
+|  + gemm_fp32_Pipeline_l_outputs_u_l_v | 0   |        |               |           |          |         |
+|    icmp_ln70_fu_720_p2                |     |        | icmp_ln70     | seteq     | auto     | 0       |
+|    add_ln70_fu_726_p2                 |     |        | add_ln70      | add       | fabric   | 0       |
+|    icmp_ln71_fu_743_p2                |     |        | icmp_ln71     | seteq     | auto     | 0       |
+|    select_ln70_fu_749_p3              |     |        | select_ln70   | select    | auto_sel | 0       |
+|    add_ln70_1_fu_757_p2               |     |        | add_ln70_1    | add       | fabric   | 0       |
+|    select_ln70_1_fu_763_p3            |     |        | select_ln70_1 | select    | auto_sel | 0       |
+|    add_ln77_fu_805_p2                 |     |        | add_ln77      | add       | fabric   | 0       |
+|    add_ln78_fu_815_p2                 |     |        | add_ln78      | add       | fabric   | 0       |
+|    sparsemux_17_3_32_1_1_U74          |     |        | tmp           | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U75          |     |        | tmp_1         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U76          |     |        | tmp_2         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U77          |     |        | tmp_3         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U78          |     |        | tmp_4         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U79          |     |        | tmp_5         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U80          |     |        | tmp_6         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U81          |     |        | tmp_7         | sparsemux | auto     | 0       |
+|    sparsemux_17_3_32_1_1_U82          |     |        | v28           | sparsemux | auto     | 0       |
+|    grp_hf_add_f32_fu_686              |     |        | v30           | blackbox  | auto     | 3       |
+|    add_ln85_fu_1117_p2                |     |        | add_ln85      | add       | fabric   | 0       |
+|    add_ln71_fu_779_p2                 |     |        | add_ln71      | add       | fabric   | 0       |
+|  + gemm_fp32_Pipeline_l_S_k_0_k_l_j   | 0   |        |               |           |          |         |
+|    icmp_ln48_fu_192_p2                |     |        | icmp_ln48     | seteq     | auto     | 0       |
+|    add_ln48_fu_198_p2                 |     |        | add_ln48      | add       | fabric   | 0       |
+|    icmp_ln49_fu_215_p2                |     |        | icmp_ln49     | seteq     | auto     | 0       |
+|    select_ln48_fu_221_p3              |     |        | select_ln48   | select    | auto_sel | 0       |
+|    add_ln48_1_fu_229_p2               |     |        | add_ln48_1    | add       | fabric   | 0       |
+|    select_ln48_1_fu_235_p3            |     |        | select_ln48_1 | select    | auto_sel | 0       |
+|    first_iter_0_fu_243_p2             |     |        | first_iter_0  | seteq     | auto     | 0       |
+|    empty_fu_253_p2                    |     |        | empty         | add       | fabric   | 0       |
+|    add_ln52_fu_295_p2                 |     |        | add_ln52      | add       | fabric   | 0       |
+|    grp_hf_mul_f32_fu_156              |     |        | v15           | blackbox  | auto     | 3       |
+|    grp_hf_add_f32_fu_163              |     |        | v19           | blackbox  | auto     | 3       |
+|    add_ln49_fu_320_p2                 |     |        | add_ln49      | add       | fabric   | 0       |
+|  + gemm_fp32_Pipeline_l_j_back        | 0   |        |               |           |          |         |
+|    icmp_ln64_fu_213_p2                |     |        | icmp_ln64     | seteq     | auto     | 0       |
+|    add_ln64_fu_219_p2                 |     |        | add_ln64      | add       | fabric   | 0       |
++---------------------------------------+-----+--------+---------------+-----------+----------+---------+
+
+
+================================================================
+== Storage Report
+================================================================
++-------------------+---------------+-----------+------+------+--------+----------+------+---------+------------------+
+| Name              | Usage         | Type      | BRAM | URAM | Pragma | Variable | Impl | Latency | Bitwidth, Depth, |
+|                   |               |           |      |      |        |          |      |         | Banks            |
++-------------------+---------------+-----------+------+------+--------+----------+------+---------+------------------+
+| + gemm_fp32       |               |           | 8    | 0    |        |          |      |         |                  |
+|   control_s_axi_U | interface     | s_axilite |      |      |        |          |      |         |                  |
+|   gmem0_m_axi_U   | interface     | m_axi     | 2    |      |        |          |      |         |                  |
+|   gmem1_m_axi_U   | interface     | m_axi     | 2    |      |        |          |      |         |                  |
+|   gmem2_m_axi_U   | interface     | m_axi     | 2    |      |        |          |      |         |                  |
+|   gmem3_m_axi_U   | interface     | m_axi     | 2    |      |        |          |      |         |                  |
+|   v9_U            | ram_s2p array |           |      |      |        | v9       | auto | 1       | 32, 8, 1         |
++-------------------+---------------+-----------+------+------+--------+----------+------+---------+------------------+
+
+
+================================================================
+== Pragma Report
+================================================================
+* Valid Pragma Syntax
++-----------------+-----------------------------------------+----------------------------------------------------+
+| Type            | Options                                 | Location                                           |
++-----------------+-----------------------------------------+----------------------------------------------------+
+| interface       | ap_ctrl_none port=return                | ../blackbox/hf_add_f32.cpp:3 in hf_add_f32, return |
+| interface       | ap_ctrl_none port=return                | ../blackbox/hf_mul_f32.cpp:3 in hf_mul_f32, return |
+| interface       | m_axi port=v0 offset=slave bundle=gmem0 | kernel.cpp:29 in gemm_fp32, v0                     |
+| interface       | m_axi port=v1 offset=slave bundle=gmem1 | kernel.cpp:30 in gemm_fp32, v1                     |
+| interface       | m_axi port=v2 offset=slave bundle=gmem2 | kernel.cpp:31 in gemm_fp32, v2                     |
+| interface       | m_axi port=v4 offset=slave bundle=gmem3 | kernel.cpp:32 in gemm_fp32, v4                     |
+| array_partition | variable=acc complete dim=1             | kernel.cpp:34 in gemm_fp32, acc                    |
+| array_partition | variable=acc complete dim=2             | kernel.cpp:35 in gemm_fp32, acc                    |
+| pipeline        | II=1                                    | kernel.cpp:45 in gemm_fp32                         |
+| pipeline        | II=1                                    | kernel.cpp:50 in gemm_fp32                         |
+| pipeline        | II=1                                    | kernel.cpp:65 in gemm_fp32                         |
+| pipeline        | II=1                                    | kernel.cpp:72 in gemm_fp32                         |
++-----------------+-----------------------------------------+----------------------------------------------------+
+
+

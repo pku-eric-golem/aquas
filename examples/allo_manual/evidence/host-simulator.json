@@ -1,0 +1,7 @@
+{
+  "generated_cpp_unchanged": true,
+  "generated_cpp_files": 160,
+  "optimization": "/usr/bin/clang++ -O1 C++20; generated model unchanged",
+  "simulator_sha256": "348a574a2723b129dacee72f60ab7322d881b65b2ff913c899c4ef1c985b40b5",
+  "model_rtl_filelist": "aps_config.yaml"
+}

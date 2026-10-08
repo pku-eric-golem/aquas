@@ -89,3 +89,5 @@ thirdparty/firtool*/
 !tools/aps-cosim/example/*.sv
 !hardware/hardfloat/*.sv
 !examples/hardfloat/*.mlir
+
+tmp/
