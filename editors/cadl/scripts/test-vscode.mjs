@@ -59,6 +59,15 @@ const block = check('/* flow', 'flow', 'comment.block.cadl');
 check('1.0_f32 */', '1.0_f32', 'comment.block.cadl', block);
 check('my_f32_value = helper2(2);', 'my_f32_value', 'variable.other.cadl');
 check('let bf16_addition = 0;', 'bf16_addition', 'variable.other.cadl');
+check('allo transform with s', 'transform', 'entity.name.function.cadl');
+check('invoke transform(X = data[0 +: 16]);', 'invoke', 'keyword.control.cadl');
+for (const delimiter of ['"""', "'''"]) {
+  let python = check(`allo transform with s ${delimiter}`, delimiter, 'meta.embedded.block.python.cadl');
+  python = check('    # flow // rtype /* invoke */', 'rtype', 'meta.embedded.block.python.cadl', python);
+  python = check('    s.pipeline("i")', 'pipeline', 'meta.embedded.block.python.cadl', python);
+  python = grammar.tokenizeLine(`${delimiter};`, python).ruleStack;
+  check('rtype after_python() {', 'after_python', 'entity.name.function.cadl', python);
+}
 
 // An attribute's nested array must not close the attribute too early.
 let state = grammar.tokenizeLine('#[partition_dim_array([0, 1])]', tm.INITIAL).ruleStack;
@@ -76,7 +85,7 @@ for (const [, keyword] of lark.matchAll(/^KW_\w+: "(\w+)"/gm)) {
   const expected = ['true', 'false'].includes(keyword) ? 'constant.language.boolean.cadl'
     : keyword === 'bitcast' ? 'support.function.cadl'
     : keyword === 'Instance' || ['static', 'regfile', 'register', 'let'].includes(keyword) ? 'storage.type.cadl'
-    : ['flow', 'rtype'].includes(keyword) ? 'storage.type.function.cadl' : 'keyword.control.cadl';
+    : ['flow', 'rtype', 'allo'].includes(keyword) ? 'storage.type.function.cadl' : 'keyword.control.cadl';
   check(keyword, keyword, expected);
 }
 console.log(`VS Code: ${checks} scope assertions passed.`);

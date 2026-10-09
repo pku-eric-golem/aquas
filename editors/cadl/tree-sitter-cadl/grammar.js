@@ -10,7 +10,7 @@ module.exports = grammar({
   rules: {
     source_file: $ => repeat(choice(
       $.static_declaration, $.register_declaration,
-      $.regfile_declaration, $.flow_declaration,
+      $.regfile_declaration, $.flow_declaration, $.allo_declaration,
     )),
     identifier: _ => /[a-zA-Z_][a-zA-Z0-9_]*/,
     comment: _ => token(choice(/\/\/[^\n]*/, /\/\*[^*]*\*+([^/*][^*]*\*+)*\//)),
@@ -29,6 +29,8 @@ module.exports = grammar({
       /([0-9]+\.[0-9]+([eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)(_(bf16|f32|f64))?/,
     )),
     string: _ => /"[^"]*"/,
+    // Opaque Python: CADL comments and keywords must not tokenize inside it.
+    python_block: _ => token(choice(/"""([^"]|"[^"]|""[^"])*"""/, /'''([^']|'[^']|''[^'])*'''/)),
     boolean: _ => choice('true', 'false'),
     attribute: $ => seq('#', '[', field('name', $.identifier), optional(seq('(', $._attribute_expression, ')')), ']'),
     _attribute_expression: $ => choice($.expression, $.array_literal),
@@ -37,12 +39,21 @@ module.exports = grammar({
     register_declaration: $ => seq(repeat($.attribute), 'register', field('name', $.identifier), ':', $.type, ';'),
     regfile_declaration: $ => seq('regfile', field('name', $.identifier), '(', $.number, ',', $.number, ')', ';'),
     flow_declaration: $ => seq(repeat($.attribute), choice('flow', 'rtype'), field('name', $.identifier), '(', commaSep($.parameter), ')', field('body', choice(';', $.block))),
+    allo_declaration: $ => seq('allo', field('name', $.identifier), 'with', field('schedule', $.identifier), $.python_block, ';'),
     parameter: $ => seq(field('name', $.identifier), ':', $.type),
     block: $ => seq('{', repeat($._statement), '}'),
     _statement: $ => choice(
       $.expression_statement, $.assignment_statement, $.return_statement,
       $.guard_statement, $.do_while_statement, $.if_statement,
-      $.directive, $.spawn_statement, $.static_declaration,
+      $.directive, $.spawn_statement, $.static_declaration, $.invoke_statement,
+    ),
+    invoke_statement: $ => seq('invoke', field('kernel', $.identifier), '(',
+      optional(seq(commaSep1($.allo_binding), optional(','))), ')',
+      optional(seq('->', choice($.allo_result, seq('(', commaSep1($.allo_result), optional(','), ')')))), ';'),
+    allo_binding: $ => seq(field('name', $.identifier), '=', $.expression),
+    allo_result: $ => choice(
+      seq(field('name', $.identifier), ':', $.primitive_type),
+      seq(field('name', $.identifier), '[', $.expression, '+', ':', $.expression, ']'),
     ),
     expression_statement: $ => seq($.expression, ';'),
     assignment_statement: $ => seq(optional('let'), field('left', $.expression), optional(seq(':', $.type)), '=', field('right', $.expression), ';'),

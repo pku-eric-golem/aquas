@@ -2,15 +2,18 @@
 (identifier) @variable
 (comment) @comment
 (string) @string
+(python_block) @string
 (number) @number
 (boolean) @boolean
 (primitive_type) @type
 "Instance" @type
 
-["flow" "rtype" "static" "register" "regfile" "let"] @keyword
+["flow" "rtype" "allo" "invoke" "static" "register" "regfile" "let"] @keyword
 ["if" "else" "while" "with" "do" "spawn" "return" "sel"] @keyword
 
 (flow_declaration name: (identifier) @function)
+(allo_declaration name: (identifier) @function)
+(invoke_statement kernel: (identifier) @function)
 (parameter name: (identifier) @variable.parameter)
 (call_expression function: (identifier) @function)
 (attribute name: (identifier) @attribute)

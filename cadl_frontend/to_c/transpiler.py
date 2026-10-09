@@ -171,6 +171,8 @@ class CTranspiler:
 
         # Parse CADL
         proc = parse_proc(source, str(cadl_file))
+        from ..allo import reject_allo_backend
+        reject_allo_backend(proc, "cadl2c")
         self.proc = proc
         self.static_scalar_names = set()
         self.static_array_names = set()

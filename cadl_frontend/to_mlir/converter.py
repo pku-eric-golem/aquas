@@ -141,6 +141,8 @@ class CADLMLIRConverter:
         Creates top-level MLIR module containing all functions, flows,
         and global variables from the processor definition.
         """
+        from ..allo import reject_allo_backend
+        reject_allo_backend(proc, "mlir")
         self.proc = proc
 
         with self.context, ir.Location.unknown():

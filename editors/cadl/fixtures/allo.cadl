@@ -1,0 +1,37 @@
+static samples: [i32; 32];
+static results: [i32; 32];
+
+allo transform with s """
+import allo
+from allo.ir.types import int32
+
+def transform(X: int32[16], bias: int32) -> int32[16]:
+    '''This Python docstring contains // and /* CADL-looking comments. */'''
+    Y: int32[16]
+    for i in range(16):
+        Y[i] = X[i] + bias
+    return Y
+
+s = allo.customize(transform)
+s.pipeline("i")
+""";
+
+allo analyze with schedule '''
+import allo
+from allo.ir.types import int32
+
+def analyze(X: int32[16]) -> (int32[16], int32):
+    """A second opaque block, using the other delimiter."""
+    return X, X[0]
+
+schedule = allo.customize(analyze)
+''';
+
+rtype run(rs1: u5, rd: u5) {
+    let offset: u32 = _irf[rs1];
+    invoke transform(X = samples[offset +: 16], bias = 3,)
+        -> results[0 +: 16];
+    invoke analyze(X = results[0 +: 16])
+        -> (samples[0 +: 16], first: i32,);
+    _irf[rd] = first;
+}

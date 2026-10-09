@@ -7,6 +7,7 @@
     "code": {
       "patterns": [
         { "include": "#comments" },
+        { "include": "#python-blocks" },
         { "include": "#strings" },
         { "include": "#attributes" },
         { "include": "#directives" },
@@ -29,6 +30,12 @@
       "patterns": [
         { "name": "comment.line.double-slash.cadl", "begin": "//", "end": "$" },
         { "name": "comment.block.cadl", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "python-blocks": {
+      "patterns": [
+        { "name": "meta.embedded.block.python.cadl", "contentName": "string.unquoted.python.cadl", "begin": "\"\"\"", "end": "\"\"\"" },
+        { "name": "meta.embedded.block.python.cadl", "contentName": "string.unquoted.python.cadl", "begin": "'''", "end": "'''" }
       ]
     },
     "strings": {
@@ -68,7 +75,7 @@
     "declarations": {
       "patterns": [
         {
-          "match": "\\b(flow|rtype)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+          "match": "\\b(flow|rtype|allo)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.function.cadl" },
             "2": { "name": "entity.name.function.cadl" }
@@ -81,8 +88,8 @@
     "keywords": {
       "patterns": [
         { "name": "constant.language.boolean.cadl", "match": "\\b(true|false)\\b" },
-        { "name": "keyword.control.cadl", "match": "\\b(if|else|while|with|do|in|spawn|return|break|continue|sel)\\b" },
-        { "name": "storage.type.function.cadl", "match": "\\b(flow|rtype)\\b" }
+        { "name": "keyword.control.cadl", "match": "\\b(if|else|while|with|do|in|spawn|return|break|continue|sel|invoke)\\b" },
+        { "name": "storage.type.function.cadl", "match": "\\b(flow|rtype|allo)\\b" }
       ]
     },
     "numbers": {

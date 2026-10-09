@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 from enum import Enum
 import re
+import textwrap
 
 
 # Type aliases
@@ -81,12 +82,62 @@ __all__ = [
     "StaticPart",
     "RegisterPart",
     "Proc",
+    "SourceSpan",
+    "PythonSource",
+    "AlloKernel",
+    "AlloKernelPart",
+    "AlloBinding",
+    "AlloScalarResult",
+    "AlloArrayResult",
+    "InvokeStmt",
     "expr_is_lval",
     "expr_as_literal",
     "expr_flatten",
     "parse_basic_type_from_string",
     "parse_literal_from_string",
 ]
+
+
+@dataclass(frozen=True)
+class SourceSpan:
+    line: int
+    column: int
+    end_line: int
+    end_column: int
+    start_pos: int
+    end_pos: int
+
+    @classmethod
+    def from_lark(cls, position):
+        return cls(*(getattr(position, name) for name in cls.__dataclass_fields__))
+
+
+class ASTSourceError(ValueError):
+    def __init__(self, message: str, span: SourceSpan):
+        super().__init__(message)
+        self.span = span
+
+
+@dataclass
+class PythonSource:
+    """Uninterpreted block, including delimiters; never executed by the parser."""
+
+    raw: str
+    span: SourceSpan
+
+    @property
+    def text(self) -> str:
+        return textwrap.dedent(self.raw[3:-3])
+
+    def source_position(self, line: int, column: int = 1) -> tuple[int, int]:
+        """Map a position in dedented Python back into the enclosing CADL."""
+        original = self.raw[3:-3].splitlines()
+        normalized = self.text.splitlines()
+        removed = 0
+        if 0 < line <= min(len(original), len(normalized)):
+            removed = len(original[line - 1]) - len(normalized[line - 1])
+        prefix = self.span.column + 2 if line == 1 else 0
+        return self.span.line + line - 1, prefix + removed + column
 
 
 # Expression types
@@ -510,6 +561,50 @@ class ExprStmt(Stmt):
 
 
 @dataclass
+class AlloBinding:
+    name: str
+    value: Expr
+    span: SourceSpan
+
+    def __str__(self):
+        return f"{self.name} = {self.value}"
+
+
+@dataclass
+class AlloScalarResult:
+    name: str
+    ty: DataType_Single
+    span: SourceSpan
+
+    def __str__(self):
+        return f"{self.name}: {self.ty}"
+
+
+@dataclass
+class AlloArrayResult:
+    view: RangeSliceExpr
+    span: SourceSpan
+
+    def __str__(self):
+        return str(self.view)
+
+
+@dataclass
+class InvokeStmt(Stmt):
+    kernel: str
+    bindings: List[AlloBinding]
+    results: List[AlloScalarResult | AlloArrayResult]
+    span: SourceSpan
+
+    def __str__(self):
+        result = ""
+        if self.results:
+            result = " -> " + (str(self.results[0]) if len(self.results) == 1 else
+                               "(" + ", ".join(map(str, self.results)) + ")")
+        return f"invoke {self.kernel}({', '.join(map(str, self.bindings))}){result};"
+
+
+@dataclass
 class AssignStmt(Stmt):
     """Assignment statement"""
 
@@ -731,6 +826,17 @@ class Register:
 
 
 # Flow-related structures
+@dataclass
+class AlloKernel:
+    name: str
+    schedule: str
+    source: PythonSource
+    span: SourceSpan
+
+    def __str__(self):
+        return f"allo {self.name} with {self.schedule} {self.source.raw};"
+
+
 class FlowKind(Enum):
     DEFAULT = "default"
     RTYPE = "rtype"
@@ -857,6 +963,11 @@ class RegisterPart(ProcPart):
 
 
 @dataclass
+class AlloKernelPart(ProcPart):
+    kernel: AlloKernel
+
+
+@dataclass
 class Proc:
     """Main processor structure"""
 
@@ -864,6 +975,7 @@ class Proc:
     flows: Map[str, Flow] = field(default_factory=dict)
     statics: Map[str, Static] = field(default_factory=dict)
     registers: Map[str, Register] = field(default_factory=dict)
+    allo_kernels: Map[str, AlloKernel] = field(default_factory=dict)
 
     @property
     def csrs(self) -> Map[str, Register]:
@@ -884,6 +996,10 @@ class Proc:
             self.statics[part.static.id] = part.static
         elif isinstance(part, RegisterPart):
             self.registers[part.register.name] = part.register
+        elif isinstance(part, AlloKernelPart):
+            if part.kernel.name in self.allo_kernels:
+                raise ASTSourceError(f"Duplicate Allo kernel: {part.kernel.name}", part.kernel.span)
+            self.allo_kernels[part.kernel.name] = part.kernel
 
     def __str__(self) -> str:
         parts = []
@@ -895,11 +1011,18 @@ class Proc:
             parts.append(f"{len(self.statics)} statics")
         if self.registers:
             parts.append(f"{len(self.registers)} registers")
+        if self.allo_kernels:
+            parts.append(f"{len(self.allo_kernels)} Allo kernels")
         return f"Proc({', '.join(parts)})"
 
     def pretty_print(self) -> str:
         """Detailed pretty printing of the processor"""
         lines = ["Processor AST:"]
+
+        if self.allo_kernels:
+            lines.append("  Allo Kernels:")
+            for kernel in self.allo_kernels.values():
+                lines.extend(f"    {line}" for line in str(kernel).splitlines())
 
         if self.regfiles:
             lines.append("  Regfiles:")

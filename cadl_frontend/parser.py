@@ -7,7 +7,7 @@ Converts parse trees into AST nodes matching the Rust implementation.
 
 from pathlib import Path
 from typing import Optional
-from lark import Lark, Transformer, Token, UnexpectedInput
+from lark import Lark, Transformer, Token, UnexpectedInput, v_args
 from lark.exceptions import (
     UnexpectedToken,
     UnexpectedCharacters,
@@ -726,6 +726,50 @@ class CADLTransformer(Transformer):
         return register
 
     # Processor parts
+    @v_args(meta=True)
+    def allo_kernel(self, meta, items):
+        code = next(item for item in items if _is_token(item, "PYTHON_BLOCK"))
+        return cadl_ast.AlloKernel(
+            str(items[1]), str(items[3]),
+            cadl_ast.PythonSource(str(code), cadl_ast.SourceSpan.from_lark(code)),
+            cadl_ast.SourceSpan.from_lark(meta))
+
+    @v_args(meta=True)
+    def allo_binding(self, meta, items):
+        return cadl_ast.AlloBinding(str(items[0]), items[2], cadl_ast.SourceSpan.from_lark(meta))
+
+    def allo_bindings(self, items):
+        return [item for item in items if isinstance(item, cadl_ast.AlloBinding)]
+
+    @v_args(meta=True)
+    def allo_scalar_result(self, meta, items):
+        ty = cadl_ast.DataType_Single(cadl_ast.parse_basic_type_from_string(str(items[2])))
+        return cadl_ast.AlloScalarResult(str(items[0]), ty, cadl_ast.SourceSpan.from_lark(meta))
+
+    @v_args(meta=True)
+    def allo_array_result(self, meta, items):
+        exprs = [item for item in items if isinstance(item, cadl_ast.Expr)]
+        view = cadl_ast.RangeSliceExpr(cadl_ast.IdentExpr(str(items[0])), *exprs)
+        return cadl_ast.AlloArrayResult(view, cadl_ast.SourceSpan.from_lark(meta))
+
+    def allo_results(self, items):
+        return [item for item in items
+                if isinstance(item, (cadl_ast.AlloScalarResult, cadl_ast.AlloArrayResult))]
+
+    @v_args(meta=True)
+    def invoke_stmt(self, meta, items):
+        bindings, results = [], []
+        for item in items:
+            if isinstance(item, list) and item:
+                if isinstance(item[0], cadl_ast.AlloBinding):
+                    bindings = item
+                else:
+                    results = item
+        return cadl_ast.InvokeStmt(str(items[1]), bindings, results, cadl_ast.SourceSpan.from_lark(meta))
+
+    def stmt(self, items):
+        return items[0]
+
     def proc_part(self, items):
         part = items[0]
         if isinstance(part, cadl_ast.Regfile):
@@ -736,6 +780,8 @@ class CADLTransformer(Transformer):
             return cadl_ast.StaticPart(part)
         elif isinstance(part, cadl_ast.Register):
             return cadl_ast.RegisterPart(part)
+        elif isinstance(part, cadl_ast.AlloKernel):
+            return cadl_ast.AlloKernelPart(part)
         return part
 
     # Main processor
@@ -784,6 +830,7 @@ class CADLParser:
             grammar,
             parser="lalr",  # Using LALR parser for better performance with transformers
             start="start",
+            propagate_positions=True,
         )
         self.transformer = CADLTransformer()
 
@@ -797,6 +844,10 @@ class CADLParser:
             # Convert Lark errors to pretty CADL errors (no chaining to hide traceback)
             raise format_lark_error(e, source, filename, self.parser.parse)
         except VisitError as e:
+            if isinstance(e.orig_exc, cadl_ast.ASTSourceError):
+                span = e.orig_exc.span
+                raise CADLParseError(str(e.orig_exc), span.line, span.column,
+                                     filename, source.splitlines()) from None
             if isinstance(e.orig_exc, (ValueError, NotImplementedError)):
                 raise CADLParseError(
                     str(e.orig_exc), 0, 0, filename, source.splitlines()

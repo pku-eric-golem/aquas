@@ -2,6 +2,10 @@
   ["flow" "rtype"] @context
   name: (identifier) @name) @item
 
+(allo_declaration
+  "allo" @context
+  name: (identifier) @name) @item
+
 (static_declaration
   "static" @context
   name: (identifier) @name) @item

@@ -8,8 +8,7 @@ from pathlib import Path
 
 from cadl_frontend import cadl_ast, parse_proc
 from cadl_frontend.parser import CADLParseError
-from cadl_frontend.to_c import CTranspiler
-from cadl_frontend.to_mlir import convert_cadl_to_mlir, validate_mlir
+from cadl_frontend.allo import check_source, reject_allo_backend
 
 
 def _read_proc(input_file: str):
@@ -26,12 +25,15 @@ def _write_or_print(text: str, output_file: str | None) -> None:
 
 def convert_to_mlir(input_file: str, output_file: str | None) -> None:
     proc = _read_proc(input_file)
+    reject_allo_backend(proc, "mlir")
+    from cadl_frontend.to_mlir import convert_cadl_to_mlir, validate_mlir
     mlir_text = str(convert_cadl_to_mlir(proc))
     validate_mlir(mlir_text)
     _write_or_print(mlir_text, output_file)
 
 
 def convert_to_c(input_file: str, output_file: str | None) -> None:
+    from cadl_frontend.to_c import CTranspiler
     c_code = CTranspiler().transpile(Path(input_file))
     _write_or_print(c_code, output_file)
 
@@ -65,6 +67,9 @@ def main() -> int:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    check_parser = subparsers.add_parser("check", help="Check CADL and Allo binding structure without executing Python")
+    check_parser.add_argument("input")
+
     mlir_parser = subparsers.add_parser("mlir", help="Convert CADL to MLIR")
     mlir_parser.add_argument("input")
     mlir_parser.add_argument("-o", "--output")
@@ -81,7 +86,12 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        if args.command == "mlir":
+        if args.command == "check":
+            proc = check_source(Path(args.input).read_text(), args.input)
+            print(f"CADL structural check PASS: {len(proc.allo_kernels)} Allo kernels, {len(proc.flows)} flows")
+            if proc.allo_kernels:
+                print("Embedded Python was not executed. Allo type/interface checks and the independent hardware backend are not implemented.")
+        elif args.command == "mlir":
             convert_to_mlir(args.input, args.output)
         elif args.command == "cadl2c":
             convert_to_c(args.input, args.output)

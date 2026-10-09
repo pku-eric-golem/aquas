@@ -5,6 +5,10 @@ Cadl/TypeSpec API-description language. The authoritative grammar is
 [`cadl_frontend/grammar.lark`](../../cadl_frontend/grammar.lark); floating
 intrinsics follow `cadl_frontend/to_mlir/expr.py`.
 
+Embedded `allo` declarations and `invoke` bindings are recognized. Triple-quoted
+Python is kept as an opaque region so its comments and keywords do not get
+interpreted as CADL; Python language services are not included.
+
 ## Build
 
 Requirements: **Node.js 22+**, npm, Git, and a C compiler (for Tree-sitter tests).

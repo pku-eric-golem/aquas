@@ -21,6 +21,8 @@ NUMBER_LIT: /-?[0-9]+(_[fui]([1-9][0-9]*)|_bf16)?/
             | /-?(?:[0-9]+\.[0-9]+(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)(?:_(?:bf16|f32|f64))?/
 
 STRING_LIT: /"[^"]*"/
+// Opaque Python: CADL whitespace/comment rules never inspect this token.
+PYTHON_BLOCK: /"""[\s\S]*?"""|'''[\s\S]*?'''/
 
 // Keywords
 KW_STATIC: "static"
@@ -44,6 +46,8 @@ KW_FALSE: "false"
 KW_REGFILE: "regfile"
 KW_REGISTER: "register"
 KW_BITCAST: "bitcast"
+KW_ALLO: "allo"
+KW_INVOKE: "invoke"
 
 // Cast operators
 SIGNED_CAST: "$signed"
@@ -103,6 +107,17 @@ proc_part: regfile
          | flow
          | static
          | register
+         | allo_kernel
+
+allo_kernel: KW_ALLO IDENTIFIER KW_WITH IDENTIFIER PYTHON_BLOCK SEMICOLON
+
+invoke_stmt: KW_INVOKE IDENTIFIER LPAREN allo_bindings? RPAREN (ARROW allo_results)? SEMICOLON
+allo_bindings: allo_binding (COMMA allo_binding)* COMMA?
+allo_binding: IDENTIFIER ASSIGN expr
+allo_results: allo_result
+            | LPAREN allo_result (COMMA allo_result)* COMMA? RPAREN
+allo_result: IDENTIFIER COLON VARTYPE -> allo_scalar_result
+           | IDENTIFIER LBRACKET add_expr OP_PLUS COLON add_expr RBRACKET -> allo_array_result
 
 // Data types
 data_type: VARTYPE                                      -> single_type
@@ -134,6 +149,7 @@ stmt: expr SEMICOLON                                   -> expr_stmt
     | LBRACKET_BRACKET IDENTIFIER (LPAREN expr RPAREN)? RBRACKET_BRACKET -> directive_stmt
     | KW_SPAWN LBRACE stmt* RBRACE                    -> spawn_stmt
     | static                                          -> static_stmt
+    | invoke_stmt
 
 // Body (either empty or block)
 body: SEMICOLON                                        -> empty_body

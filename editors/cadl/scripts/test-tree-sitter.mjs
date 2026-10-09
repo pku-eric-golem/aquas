@@ -22,10 +22,20 @@ function cadlFiles(dir) {
   });
 }
 process.stdout.write(run(['test']));
-const files = [path.join(root, 'fixtures/highlight.cadl'), ...['examples', 'tutorial/cadl', 'tests/hardfloat']
+const files = [...cadlFiles(path.join(root, 'fixtures')), ...['examples', 'tutorial/cadl', 'tests/hardfloat']
   .flatMap(dir => cadlFiles(path.join(repo, dir)))];
 run(['parse', '--quiet', '--config-path', config, ...files]);
 console.log(`Tree-sitter: ${files.length} CADL files parsed without errors.`);
+const alloFixture = path.join(root, 'fixtures/allo.cadl');
+const alloTree = run(['parse', '--config-path', config, alloFixture]);
+assert.equal((alloTree.match(/\(python_block /g) || []).length, 2);
+assert.equal((alloTree.match(/\(allo_declaration /g) || []).length, 2);
+assert.equal((alloTree.match(/\(invoke_statement /g) || []).length, 2);
+assert.doesNotMatch(alloTree, /\(comment /, 'Python comments leaked into CADL');
+const alloOutline = run(['query', '--config-path', config,
+  path.join(root, 'zed/languages/cadl/outline.scm'), alloFixture]);
+assert.match(alloOutline, /- name,.*`transform`/);
+assert.match(alloOutline, /- name,.*`analyze`/);
 const fixture = path.join(root, 'fixtures/highlight.cadl');
 for (const query of ['highlights', 'brackets', 'indents', 'outline']) {
   const queryPath = path.join(root, `zed/languages/cadl/${query}.scm`);

@@ -16,6 +16,39 @@ rtype instruction_name(rs1: u5, rs2: u5, rd: u5) {
 }
 ```
 
+## Embedded Allo Designs
+
+An `allo` declaration embeds a Python algorithm and its Allo schedule. A blocking
+`invoke` binds named parameters to CADL scalar expressions or explicit SPM views:
+
+```cadl
+static data: [i32; 16];
+allo increment with s """
+import allo
+from allo.ir.types import int32
+def increment(X: int32[16], delta: int32):
+    for i in range(16):
+        X[i] = X[i] + delta
+s = allo.customize(increment)
+s.pipeline("i")
+""";
+rtype run(rs1: u5, rd: u5) {
+    invoke increment(X = data[0 +: 16], delta = _irf[rs1]);
+    _irf[rd] = 0;
+}
+```
+
+Views use element offsets/counts and do not imply copies or DMA. Return bindings
+use `-> value: u32`, `-> data[0 +: 16]`, or a tuple of such targets. The Python
+block also accepts triple single quotes; use the other delimiter for embedded
+Python docstrings.
+
+**Frontend only:** `aps-frontend check` validates structure without executing
+Python. Existing `mlir` and `cadl2c` commands reject Allo designs. The future
+Allo + Vitis backend generates interface FSMs directly, bypassing Aquas HLS.
+See [the syntax contract and implementation roadmap](cadl-allo-integration.md)
+and [the complete GEMM example](../../examples/allo/gemm.cadl).
+
 ## Type System
 
 | Type | Description |

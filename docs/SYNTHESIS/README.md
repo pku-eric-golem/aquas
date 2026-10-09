@@ -8,6 +8,10 @@ The APS synthesis flow transforms high-level ISAX descriptions in CADL to synthe
 
 The pipeline converts untimed software-like descriptions to timed hardware representations through optimization passes and scheduling.
 
+CADL also has an [embedded Allo interface](cadl-allo-integration.md) for a separate
+Allo + Vitis route. Its syntax, AST and structural checker are implemented;
+the independent FSM/SPM wrapper backend is planned and bypasses this HLS pipeline.
+
 ## Quick Start
 
 ```bash
@@ -100,6 +104,7 @@ static matrix: [i32; 16];
 ## Further Reading
 
 - [cadl-language.md](cadl-language.md) - CADL language reference
+- [cadl-allo-integration.md](cadl-allo-integration.md) - Embedded Allo syntax, explicit SPM bindings, frontend example and independent RTL backend roadmap
 - [aps-e2e-flow.md](aps-e2e-flow.md) - Current `aps-e2e` synthesis flow and refactor contract
 - [aquas-ir-op-mapping.md](aquas-ir-op-mapping.md) - Current APS operation to three-level Aquas-IR operation mapping plan
 - [aps-to-cmt2-fifo-flow.md](aps-to-cmt2-fifo-flow.md) - Current implementation: code-level explanation of block, slot, and loop FIFO transfer in `aps-to-cmt2`

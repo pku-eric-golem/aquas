@@ -15,6 +15,98 @@
     }
   },
   {
+    "type": "allo_binding",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "allo_declaration",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "schedule": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "python_block",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "allo_result",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        },
+        {
+          "type": "primitive_type",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "array_literal",
     "named": true,
     "fields": {},
@@ -271,6 +363,10 @@
         },
         {
           "type": "if_statement",
+          "named": true
+        },
+        {
+          "type": "invoke_statement",
           "named": true
         },
         {
@@ -605,6 +701,10 @@
           "named": true
         },
         {
+          "type": "invoke_statement",
+          "named": true
+        },
+        {
           "type": "return_statement",
           "named": true
         },
@@ -760,6 +860,36 @@
       "types": [
         {
           "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "invoke_statement",
+    "named": true,
+    "fields": {
+      "kernel": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "allo_binding",
+          "named": true
+        },
+        {
+          "type": "allo_result",
           "named": true
         }
       ]
@@ -990,6 +1120,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "allo_declaration",
+          "named": true
+        },
         {
           "type": "flow_declaration",
           "named": true
@@ -1243,6 +1377,10 @@
     "named": false
   },
   {
+    "type": "->",
+    "named": false
+  },
+  {
     "type": "/",
     "named": false
   },
@@ -1311,6 +1449,10 @@
     "named": false
   },
   {
+    "type": "allo",
+    "named": false
+  },
+  {
     "type": "bitcast",
     "named": false
   },
@@ -1344,6 +1486,10 @@
     "named": false
   },
   {
+    "type": "invoke",
+    "named": false
+  },
+  {
     "type": "let",
     "named": false
   },
@@ -1353,6 +1499,10 @@
   },
   {
     "type": "primitive_type",
+    "named": true
+  },
+  {
+    "type": "python_block",
     "named": true
   },
   {

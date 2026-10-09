@@ -1,0 +1,139 @@
+// Frontend example: independent Allo + Vitis wrapper backend is planned.
+// Uses the validated manual FP32 GEMM ABI; this file is not RTL-synthesizable yet.
+// Array offsets/counts are elements. _mem addresses and stride_x are bytes.
+static matA: [f32; 131072];
+static matBT: [f32; 131072];
+static matCD: [f32; 131072];
+
+allo gemm_fp32 with s """
+import allo
+from allo.ir.types import float32, uint8
+
+
+def gemm_fp32(A: float32[64], BT: float32[64], C: float32[64],
+              use_c: uint8, D: float32[64]):
+    # An explicit accumulation tensor exposes the perfect reduction loop nest
+    # used by the official Allo Vivado/Vitis GEMM scheduling tutorial.
+    acc: float32[8, 8] = 0.0
+    for i, j in allo.grid(8, 8, name="mac"):
+        for k in allo.reduction(8):
+            product: float32 = A[i * 8 + k] * BT[j * 8 + k]
+            acc[i, j] = acc[i, j] + product
+    for u, v in allo.grid(8, 8, name="outputs"):
+        initial: float32 = 0.0
+        if use_c != 0:
+            initial = C[u * 8 + v]
+        D[u * 8 + v] = acc[u, v] + initial
+
+s = allo.customize(gemm_fp32)
+s.reorder("k", "j")
+s.buffer_at(s.acc, axis="i")
+s.pipeline("j", initiation_interval=1)
+s.pipeline("v", initiation_interval=1)
+s.partition(s.acc, dim=0)
+""";
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype gemm8x8_fp32(rs1: u5, rs2: u5, rd: u5) {
+    let r1: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    // Preserve the manual ABI's reserved bit in the A tile field.
+    let tile_a: u16 = (r1 & 32'hEFFFFFFF) >> 16;
+    let tile_b: u16 = r1 & 32'h7FFF;
+    let tile_c: u16 = r2 >> 16;
+    let tile_d: u16 = r2 & 32'hFFFF;
+    let use_c: u8 = (r1 >> 15) & 1;
+
+    // Views bind the actual scratchpads; invoke does not copy or allocate them.
+    // C and D can select the same tile for this kernel's validated in-place path.
+    invoke gemm_fp32(
+        A = matA[tile_a * 64 +: 64],
+        BT = matBT[tile_b * 64 +: 64],
+        C = matCD[tile_c * 64 +: 64],
+        use_c = use_c,
+        D = matCD[tile_d * 64 +: 64]
+    );
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: (SPM element offset << 16) | row pitch bytes.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype loadmat_a_8tile(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let spm_base: u32 = r2 >> 16;
+    let row_pitch: u32 = r2 & 32'hFFFF;
+    with
+        row: u32 = (0, row_next)
+        dram_addr: u32 = (dram_base, dram_next)
+        spm_addr: u32 = (spm_base, spm_next)
+    do {
+        // Eight adjacent FP32 tile rows = 256 bytes, split into two bursts.
+        [[stride_x(32)]]
+        [[stride_y(8)]]
+        matA[spm_addr +: ] = _mem[dram_addr +: 32];
+        [[stride_x(32)]]
+        [[stride_y(8)]]
+        matA[spm_addr + 256 +: ] = _mem[dram_addr + 128 +: 32];
+        let row_next: u32 = row + 1;
+        let dram_next: u32 = dram_addr + row_pitch;
+        let spm_next: u32 = spm_addr + 8;
+    } while (row_next < 8);
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: (SPM element offset << 16) | row pitch bytes.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000001)]
+rtype loadmat_b_8tile(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let spm_base: u32 = r2 >> 16;
+    let row_pitch: u32 = r2 & 32'hFFFF;
+    with
+        row: u32 = (0, row_next)
+        dram_addr: u32 = (dram_base, dram_next)
+        spm_addr: u32 = (spm_base, spm_next)
+    do {
+        // Eight adjacent FP32 tile rows = 256 bytes, split into two bursts.
+        [[stride_x(32)]]
+        [[stride_y(8)]]
+        matBT[spm_addr +: ] = _mem[dram_addr +: 32];
+        [[stride_x(32)]]
+        [[stride_y(8)]]
+        matBT[spm_addr + 256 +: ] = _mem[dram_addr + 128 +: 32];
+        let row_next: u32 = row + 1;
+        let dram_next: u32 = dram_addr + row_pitch;
+        let spm_next: u32 = spm_addr + 8;
+    } while (row_next < 8);
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: (SPM element offset << 16) | row pitch bytes.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype storemat_c_8tile(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let spm_base: u32 = r2 >> 16;
+    let row_pitch: u32 = r2 & 32'hFFFF;
+    with
+        row: u32 = (0, row_next)
+        dram_addr: u32 = (dram_base, dram_next)
+        spm_addr: u32 = (spm_base, spm_next)
+    do {
+        // Eight adjacent FP32 tile rows = 256 bytes, split into two bursts.
+        [[stride_x(32)]]
+        [[stride_y(8)]]
+        _mem[dram_addr +: 32] = matCD[spm_addr +: ];
+        [[stride_x(32)]]
+        [[stride_y(8)]]
+        _mem[dram_addr + 128 +: 32] = matCD[spm_addr + 256 +: ];
+        let row_next: u32 = row + 1;
+        let dram_next: u32 = dram_addr + row_pitch;
+        let spm_next: u32 = spm_addr + 8;
+    } while (row_next < 8);
+    _irf[rd] = 0;
+}
