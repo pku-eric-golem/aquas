@@ -10,7 +10,8 @@ import pytest
 from cadl_frontend.allo_sv_gen.burst import generate_burst
 from cadl_frontend.allo_sv_gen.instantiate import (KernelParam, classify, generate_hls_instance,
                                                    load_rtl_ports)
-from cadl_frontend.allo_sv_gen.ports import generate_ports, load_ports, tie_off_unused
+from cadl_frontend.allo_sv_gen.ports import (assemble_module, generate_ports, load_ports,
+                                             tie_off_unused)
 from cadl_frontend.allo_sv_gen.spm import build_layout, generate_spm
 from cadl_frontend.parser import parse_proc
 
@@ -80,7 +81,7 @@ def test_unknown_hls_port_rejected():
 def _skeleton(proc, ports, instance) -> str:
     layout = build_layout(proc)
     body = generate_spm(layout) + generate_burst(layout, ports) + generate_hls_instance(instance)
-    return generate_ports(ports) + body + tie_off_unused(body, ports) + "endmodule\n"
+    return assemble_module(ports, body)
 
 
 def _simulate(tmp_path: Path, name: str, main_sv: str) -> str:

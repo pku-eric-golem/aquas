@@ -46,3 +46,7 @@ def tie_off_unused(body: str, ports: list[WrapperPort]) -> str:
     ties = [f"assign {p.name} = '0;" for p in ports
             if p.direction == "output" and not re.search(rf"assign\s+{p.name}\b", body)]
     return "\n".join(ties) + ("\n" if ties else "")
+
+
+def assemble_module(ports: list[WrapperPort], body: str, module: str = "main") -> str:
+    return generate_ports(ports, module) + body + tie_off_unused(body, ports) + "endmodule\n"
