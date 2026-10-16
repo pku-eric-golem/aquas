@@ -74,7 +74,8 @@ static inline void {name}(float a, float b, float *result) {{
 
 
 def _rtl(name: str, op: int) -> str:
-    return f"""module {name}(
+    # Vitis instantiates the blackbox under its C function name.
+    return f"""module {name}_rtl(
  input wire ap_clk, ap_rst, ap_ce,
  input wire [31:0] a, b,
  output wire [31:0] result,
@@ -85,8 +86,9 @@ def _rtl(name: str, op: int) -> str:
   .clock(ap_clk), .clock_enable(ap_ce && !ap_rst),
   .a(a), .b(b), .c(32'b0), .rm(3'b000), .payload(payload));
  assign result = ap_rst ? 32'b0 : payload[31:0];
- // Vitis 2024.1 wires a scalar-return blackbox call only with an extra
- // output; this constant is that auxiliary port, not a control signal.
+ // Vitis 2024.1 may wire an ap_ready pin to an ap_ctrl_none scalar-return
+ // call, and every RTL port must be declared in the JSON, so the constant is
+ // declared as an auxiliary output named ap_ready (see rtl_fixups.py).
  assign ap_ready = 1'b1;
 endmodule
 """
@@ -106,7 +108,7 @@ extern "C" float {name}_rtl(float a, float b, bool &ap_ready) {{
 def _config(name: str, out: Path, with_bundle: bool) -> dict:
     return {
         "c_function_name": f"{name}_rtl",
-        "rtl_top_module_name": name,
+        "rtl_top_module_name": f"{name}_rtl",
         "c_files": [{"c_file": str(out / f"{name}.cpp"),
                      "cflag": "-fno-fast-math -ffp-contract=off"}],
         "rtl_files": ([str(out / "HardFloatNative.v")] if with_bundle else [])

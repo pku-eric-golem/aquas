@@ -6,6 +6,7 @@ Interfaces are pinned with Tcl directives instead of editing the C++.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,7 @@ from allo._mlir.ir import (F32Type, FlatSymbolRefAttr, FunctionType, InsertionPo
 
 from .blackbox import OPERATORS, build_blackboxes
 from .instantiate import KernelParam
+from .rtl_fixups import fix_rtl
 
 FLOAT_LOWERING = {"arith.addf": "hf_add_f32", "arith.mulf": "hf_mul_f32"}
 FLOAT_ARITH = {"arith.addf", "arith.subf", "arith.mulf", "arith.divf", "arith.remf",
@@ -111,8 +113,11 @@ def emit_project(schedule, directory: Path, *, part: str = "xc7z020clg400-1",
 
 
 def run_csynth(project: HLSProject, vitis_hls: str = "vitis_hls") -> Path:
-    """Run C synthesis; return the solution's Verilog directory."""
+    """Run C synthesis and repair the RTL; return the directory of usable Verilog."""
     with open(project.directory / "csynth.log", "w") as log:
         subprocess.run([vitis_hls, "-f", "run.tcl"], cwd=project.directory,
                        stdout=log, stderr=subprocess.STDOUT, check=True)
-    return project.directory / "out.prj/solution1/syn/verilog"
+    rtl = project.directory / "rtl"
+    record = fix_rtl(project.directory / "out.prj/solution1/syn/verilog", rtl)
+    (project.directory / "rtl_fixups.json").write_text(json.dumps(record, indent=2) + "\n")
+    return rtl
