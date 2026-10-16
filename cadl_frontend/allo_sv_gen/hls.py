@@ -15,6 +15,7 @@ from allo._mlir.ir import (F32Type, FlatSymbolRefAttr, FunctionType, InsertionPo
                            MemRefType, StringAttr)
 
 from .blackbox import OPERATORS, build_blackboxes
+from .instantiate import KernelParam
 
 FLOAT_LOWERING = {"arith.addf": "hf_add_f32", "arith.mulf": "hf_mul_f32"}
 FLOAT_ARITH = {"arith.addf", "arith.subf", "arith.mulf", "arith.divf", "arith.remf",
@@ -22,16 +23,10 @@ FLOAT_ARITH = {"arith.addf", "arith.subf", "arith.mulf", "arith.divf", "arith.re
 
 
 @dataclass
-class Port:
-    name: str
-    kind: str  # "ap_memory" or "ap_none"
-
-
-@dataclass
 class HLSProject:
     top: str
     directory: Path
-    ports: list[Port]
+    params: list[KernelParam]
     float_calls: dict[str, int]
 
 
@@ -43,7 +38,7 @@ def _walk(op):
                 yield from _walk(child.operation)
 
 
-def name_ports(schedule) -> list[Port]:
+def name_ports(schedule) -> list[KernelParam]:
     """Keep the Python argument names on the HLS top function."""
     top = schedule.top_func
     names = [arg.name for arg in schedule.func_args[schedule.top_func_name]]
@@ -51,7 +46,7 @@ def name_ports(schedule) -> list[Port]:
     assert len(names) == len(types), (names, types)
     with schedule.module.context:
         top.attributes["inputs"] = StringAttr.get(",".join(names))
-    return [Port(name, "ap_memory" if MemRefType.isinstance(ty) else "ap_none")
+    return [KernelParam(name, "ap_memory" if MemRefType.isinstance(ty) else "ap_none")
             for name, ty in zip(names, types)]
 
 
@@ -83,7 +78,7 @@ def lower_float_ops(schedule) -> dict[str, int]:
     return {name: count for name, count in counts.items() if count}
 
 
-def _tcl(top: str, ports: list[Port], blackboxes: list[Path], part: str,
+def _tcl(top: str, ports: list[KernelParam], blackboxes: list[Path], part: str,
          clock_ns: float, memory_latency: int) -> str:
     lines = ["open_project -reset out.prj", f"set_top {top}", "add_files kernel.cpp"]
     lines += [f"add_files -blackbox {{{path}}}" for path in blackboxes]

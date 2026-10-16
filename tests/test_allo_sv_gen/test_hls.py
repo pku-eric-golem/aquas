@@ -17,7 +17,7 @@ from schedule import build_schedule  # noqa: E402
 
 def test_gemm_native_interface(tmp_path):
     project = emit_project(build_schedule(), tmp_path)
-    assert [(p.name, p.kind) for p in project.ports] == [
+    assert [(p.name, p.kind) for p in project.params] == [
         ("A", "ap_memory"), ("BT", "ap_memory"), ("C", "ap_memory"),
         ("use_c", "ap_none"), ("D", "ap_memory")]
     assert project.float_calls == {"hf_add_f32": 2, "hf_mul_f32": 1}

@@ -17,7 +17,7 @@ def main():
     parser.add_argument("--no-csynth", dest="csynth", action="store_false")
     args = parser.parse_args()
     project = emit_project(build_schedule(), args.output)
-    print("ports:", [(p.name, p.kind) for p in project.ports])
+    print("params:", [(p.name, p.kind) for p in project.params])
     print("float calls:", project.float_calls)
     if args.csynth:
         print("verilog:", run_csynth(project))
