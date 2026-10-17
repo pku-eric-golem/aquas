@@ -1,5 +1,5 @@
-// Frontend example: independent Allo + Vitis wrapper backend is planned.
-// Uses the validated manual FP32 GEMM ABI; this file is not RTL-synthesizable yet.
+// Route 1 example: tools/allo-gen builds this into a Chipyard-ready ISAX.
+// Uses the validated manual FP32 GEMM ABI (examples/allo_manual).
 // Array offsets/counts are elements. _mem addresses and stride_x are bytes.
 static matA: [f32; 131072];
 static matBT: [f32; 131072];
