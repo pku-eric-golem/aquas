@@ -1,5 +1,4 @@
 """Subtasks A/E, ports and HLS instantiation against the allo_manual golden."""
-import os
 import re
 import shutil
 import subprocess
@@ -89,13 +88,11 @@ def _simulate(tmp_path: Path, name: str, main_sv: str) -> str:
     work.mkdir()
     (work / "main.sv").write_text(main_sv)
     rtl = sorted(str(p) for p in (MANUAL / "rtl").glob("*.v"))
-    # The Allo venv needs a preloaded system libstdc++; it crashes conda's verilator.
-    env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
     subprocess.run(["verilator", "--binary", "-j", "4", "-Wno-fatal", "-Wno-lint",
                     "-Wno-style", "-Wno-PINMISSING", "--top-module", "tb", "-Mdir", "obj",
                     str(Path(__file__).with_name("burst_tb.sv")), "main.sv", *rtl],
-                   cwd=work, env=env, check=True, capture_output=True)
-    return subprocess.run([str(work / "obj/Vtb")], cwd=work, env=env, check=True,
+                   cwd=work, check=True, capture_output=True)
+    return subprocess.run([str(work / "obj/Vtb")], cwd=work, check=True,
                           capture_output=True, text=True).stdout
 
 

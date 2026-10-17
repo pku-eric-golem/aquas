@@ -1,5 +1,4 @@
 """Subtask B: decode and FSM translation, checked by RoCC-level simulation."""
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -190,10 +189,9 @@ def test_fsm_simulation(tmp_path):
     fsm = build_fsm(parse_proc(SOURCE), {})
     (tmp_path / "main.sv").write_text(assemble_module(ports, generate_fsm(fsm, {p.name for p in ports})))
     (tmp_path / "tb.sv").write_text(_testbench(CASES))
-    env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
     subprocess.run(["verilator", "--binary", "-Wno-fatal", "-Wno-lint", "-Wno-style",
                     "-Wno-PINMISSING", "--top-module", "tb", "-Mdir", "obj", "tb.sv", "main.sv"],
-                   cwd=tmp_path, env=env, check=True, capture_output=True)
-    out = subprocess.run([str(tmp_path / "obj/Vtb")], cwd=tmp_path, env=env, check=True,
+                   cwd=tmp_path, check=True, capture_output=True)
+    out = subprocess.run([str(tmp_path / "obj/Vtb")], cwd=tmp_path, check=True,
                          capture_output=True, text=True).stdout
     assert f"ROCC PASS cases={len(CASES)}" in out, out

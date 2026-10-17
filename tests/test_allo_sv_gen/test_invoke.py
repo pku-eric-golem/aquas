@@ -1,5 +1,4 @@
 """Subtask C: invoke a real HLS GEMM core through the generated wrapper."""
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -145,11 +144,10 @@ def _simulate(work: Path, main_sv: str) -> str:
     (work / "main.sv").write_text(main_sv)
     (work / "tb.sv").write_text(_testbench())
     rtl = sorted(str(p) for p in (MANUAL / "rtl").glob("*.v"))
-    env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
     subprocess.run(["verilator", "--binary", "-j", "4", "-Wno-fatal", "-Wno-lint", "-Wno-style",
                     "-Wno-PINMISSING", "--top-module", "tb", "-Mdir", "obj", "tb.sv", "main.sv",
-                    *rtl], cwd=work, env=env, check=True, capture_output=True)
-    return subprocess.run([str(work / "obj/Vtb")], cwd=work, env=env, check=True,
+                    *rtl], cwd=work, check=True, capture_output=True)
+    return subprocess.run([str(work / "obj/Vtb")], cwd=work, check=True,
                           capture_output=True, text=True).stdout
 
 

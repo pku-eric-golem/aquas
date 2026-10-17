@@ -5,7 +5,6 @@ DMA model follows TlDmaMultichannel.scala as wired by ApsWrapper.scala:
 ready and poll_for_idle are the channel idle flag, 8-byte beats, and the
 stride_x/stride_y tile jump on the SPM side.
 """
-import os
 import re
 import shutil
 import subprocess
@@ -236,11 +235,10 @@ def _run(work: Path, main_sv: str, dram, commands) -> tuple[str, list[np.ndarray
     (work / "dram.hex").write_text("\n".join(f"{int(w):016x}" for w in words64) + "\n")
     _bench(work, commands)
     rtl = sorted(str(p) for p in (MANUAL / "rtl").glob("*.v"))
-    env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
     subprocess.run(["verilator", "--binary", "-j", "4", "-Wno-fatal", "-Wno-lint", "-Wno-style",
                     "-Wno-PINMISSING", "--top-module", "tb", "-Mdir", "obj", "tb.sv", "main.sv",
-                    *rtl], cwd=work, env=env, check=True, capture_output=True)
-    out = subprocess.run([str(work / "obj/Vtb")], cwd=work, env=env, check=True,
+                    *rtl], cwd=work, check=True, capture_output=True)
+    out = subprocess.run([str(work / "obj/Vtb")], cwd=work, check=True,
                          capture_output=True, text=True).stdout
     dumps = []
     for path in sorted(work.glob("out*.hex"), key=lambda p: int(p.stem[3:])):
