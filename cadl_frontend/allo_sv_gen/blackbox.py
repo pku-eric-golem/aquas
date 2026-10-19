@@ -4,6 +4,11 @@ Allo's HLS emitter turns a scalar `func.call` result into a pointer argument,
 `hf_add_f32(a, b, &r)`. Blackboxing that shape directly makes Vitis see a
 loop-carried dependence on `r` (II 1 -> 2), so the header provides inline
 pointer-form adapters around the scalar-return blackbox `hf_<op>_f32_rtl`.
+
+The blackbox has no output besides its return value. The archived manual flow
+also declared a constant `bool &ap_ready` output; Vitis then stalls the calling
+pipeline waiting for that output forever, which needed a stall-predicate patch.
+Without it no stall appears (GEMM and the Allo library systolic array).
 """
 from __future__ import annotations
 
@@ -65,11 +70,10 @@ def _native_bundle(package) -> str:
 
 
 def _adapter(name: str) -> str:
-    return f"""extern "C" float {name}_rtl(float a, float b, bool &ap_ready);
+    return f"""extern "C" float {name}_rtl(float a, float b);
 static inline void {name}(float a, float b, float *result) {{
 #pragma HLS inline
-    bool ready;
-    *result = {name}_rtl(a, b, ready);
+    *result = {name}_rtl(a, b);
 }}"""
 
 
@@ -78,27 +82,23 @@ def _rtl(name: str, op: int) -> str:
     return f"""module {name}_rtl(
  input wire ap_clk, ap_rst, ap_ce,
  input wire [31:0] a, b,
- output wire [31:0] result,
- output wire ap_ready
+ output wire [31:0] result
 );
+ // Vitis 2024.1 may still wire an unread ap_ready pin to some instances;
+ // rtl_fixups.py drops it.
  wire [36:0] payload;
  HFNativePipelineCE #(.WIDTH(32), .OP({op}), .LATENCY({LATENCY})) arithmetic(
   .clock(ap_clk), .clock_enable(ap_ce && !ap_rst),
   .a(a), .b(b), .c(32'b0), .rm(3'b000), .payload(payload));
  assign result = ap_rst ? 32'b0 : payload[31:0];
- // Vitis 2024.1 may wire an ap_ready pin to an ap_ctrl_none scalar-return
- // call, and every RTL port must be declared in the JSON, so the constant is
- // declared as an auxiliary output named ap_ready (see rtl_fixups.py).
- assign ap_ready = 1'b1;
 endmodule
 """
 
 
 def _model(name: str, expr: str) -> str:
     return f"""#include "hardfloat_model.h"
-extern "C" float {name}_rtl(float a, float b, bool &ap_ready) {{
+extern "C" float {name}_rtl(float a, float b) {{
     #pragma HLS interface ap_ctrl_none port=return
-    ap_ready = true;
     volatile float value = {expr};
     return hf_canonical(value);
 }}
@@ -116,8 +116,6 @@ def _config(name: str, out: Path, with_bundle: bool) -> dict:
         "c_parameters": [
             {"c_name": "a", "c_port_direction": "in", "rtl_ports": {"data_read_in": "a"}},
             {"c_name": "b", "c_port_direction": "in", "rtl_ports": {"data_read_in": "b"}},
-            {"c_name": "ap_ready", "c_port_direction": "out",
-             "rtl_ports": {"data_write_out": "ap_ready"}},
         ],
         "c_return": {"c_port_direction": "out", "rtl_ports": {"data_write_out": "result"}},
         "rtl_common_signal": {
