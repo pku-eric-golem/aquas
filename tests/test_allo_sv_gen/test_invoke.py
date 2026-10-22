@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from cadl_frontend.allo_sv_gen.instantiate import KernelParam, classify, load_rtl_ports
+from cadl_frontend.allo_kernel.interface import KernelParam, classify, load_rtl_ports
 from cadl_frontend.allo_sv_gen.main import generate_main
 from cadl_frontend.parser import parse_proc
 

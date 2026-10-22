@@ -16,7 +16,7 @@ from allo._mlir.ir import (F32Type, FlatSymbolRefAttr, FunctionType, InsertionPo
                            MemRefType, StringAttr)
 
 from .blackbox import OPERATORS, build_blackboxes
-from .instantiate import KernelParam
+from .interface import KernelParam
 from .rtl_fixups import fix_rtl
 
 FLOAT_LOWERING = {"arith.addf": "hf_add_f32", "arith.mulf": "hf_mul_f32"}
@@ -30,6 +30,7 @@ class HLSProject:
     directory: Path
     params: list[KernelParam]
     float_calls: dict[str, int]
+    memory_latency: int  # read latency of every ap_memory port, in cycles
 
 
 def _walk(op):
@@ -41,15 +42,29 @@ def _walk(op):
 
 
 def name_ports(schedule) -> list[KernelParam]:
-    """Keep the Python argument names on the HLS top function."""
+    """Keep the Python argument names on the HLS top function.
+
+    Arrays stay one row-major memory each: a partitioned top argument would
+    split into several memories, which the wrapper does not map, so it is
+    rejected here rather than later as unknown RTL ports.
+    """
     top = schedule.top_func
-    names = [arg.name for arg in schedule.func_args[schedule.top_func_name]]
+    args = schedule.func_args[schedule.top_func_name]
+    names = [arg.name for arg in args]
     types = list(top.type.inputs)
     assert len(names) == len(types), (names, types)
+    partitioned = [n for n in names if f"{schedule.top_func_name}:{n}" in schedule.partitioned_arrays]
+    if partitioned:
+        raise NotImplementedError(f"{schedule.top_func_name}: partitioned top arguments {partitioned}")
     with schedule.module.context:
         top.attributes["inputs"] = StringAttr.get(",".join(names))
-    return [KernelParam(name, "ap_memory" if MemRefType.isinstance(ty) else "ap_none")
-            for name, ty in zip(names, types)]
+    params = []
+    for arg, ty in zip(args, types):
+        memory = MemRefType.isinstance(ty)
+        params.append(KernelParam(arg.name, "ap_memory" if memory else "ap_none",
+                                  str(arg.dtype), arg.dtype.bits,
+                                  tuple(MemRefType(ty).shape) if memory else ()))
+    return params
 
 
 def lower_float_ops(schedule) -> dict[str, int]:
@@ -109,7 +124,7 @@ def emit_project(schedule, directory: Path, *, part: str = "xc7z020clg400-1",
     (directory / "kernel.cpp").write_text(code)
     (directory / "run.tcl").write_text(
         _tcl(schedule.top_func_name, ports, blackboxes, part, clock_ns, memory_latency))
-    return HLSProject(schedule.top_func_name, directory, ports, calls)
+    return HLSProject(schedule.top_func_name, directory, ports, calls, memory_latency)
 
 
 def run_csynth(project: HLSProject, vitis_hls: str = "vitis_hls") -> Path:

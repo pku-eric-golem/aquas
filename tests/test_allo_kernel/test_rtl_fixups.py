@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from cadl_frontend.allo_sv_gen.rtl_fixups import fix_rtl
+from cadl_frontend.allo_kernel.rtl_fixups import fix_rtl
 
 ROOT = Path(__file__).resolve().parents[2]
 # Raw Vitis output of the archived manual flow, whose blackboxes declared an

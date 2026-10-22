@@ -12,7 +12,7 @@ import math
 
 from .. import cadl_ast as ast
 from .fsm import FlowBuilder
-from .instantiate import HlsInstance
+from ..allo_kernel.interface import HlsInstance
 from .spm import SpmLayout
 
 

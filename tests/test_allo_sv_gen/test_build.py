@@ -10,7 +10,7 @@ import pytest
 pytest.importorskip("allo")
 
 from cadl_frontend.allo_sv_gen.build import build  # noqa: E402
-from cadl_frontend.allo_sv_gen.hls import emit_project  # noqa: E402
+from cadl_frontend.allo_kernel.hls import emit_project  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 MANUAL = ROOT / "examples/allo_manual"

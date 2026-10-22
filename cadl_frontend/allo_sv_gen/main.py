@@ -5,7 +5,8 @@ from .. import cadl_ast as ast
 from .burst import generate_burst
 from .dma import DmaBridge
 from .fsm import build_fsm, generate_fsm
-from .instantiate import HlsInstance, generate_hls_instance
+from ..allo_kernel.interface import HlsInstance
+from .instantiate import generate_hls_instance
 from .invoke import InvokeBridge
 from .ports import WrapperPort, assemble_module, load_ports
 from .spm import build_layout, generate_spm

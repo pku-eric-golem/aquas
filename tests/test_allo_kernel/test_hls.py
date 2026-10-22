@@ -8,7 +8,7 @@ import pytest
 allo = pytest.importorskip("allo")
 from allo.ir.types import float32  # noqa: E402
 
-from cadl_frontend.allo_sv_gen.hls import emit_project  # noqa: E402
+from cadl_frontend.allo_kernel.hls import emit_project  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "examples/allo_manual"))

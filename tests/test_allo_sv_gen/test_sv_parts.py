@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from cadl_frontend.allo_kernel.interface import KernelParam, classify, load_rtl_ports
 from cadl_frontend.allo_sv_gen.burst import generate_burst
-from cadl_frontend.allo_sv_gen.instantiate import (KernelParam, classify, generate_hls_instance,
-                                                   load_rtl_ports)
+from cadl_frontend.allo_sv_gen.instantiate import generate_hls_instance
 from cadl_frontend.allo_sv_gen.ports import (assemble_module, generate_ports, load_ports,
                                              tie_off_unused)
 from cadl_frontend.allo_sv_gen.spm import build_layout, generate_spm

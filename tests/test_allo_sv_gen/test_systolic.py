@@ -115,6 +115,16 @@ def test_full_build_needs_no_stall_repair(full_build):
     assert "A_address1" in ports and "C_we1" in ports  # Vitis uses both ports of each array
 
 
+def test_full_build_manifest(full_build):
+    interface = json.loads((full_build.output / "manifest.json").read_text())["interface"]
+    assert interface == json.loads((full_build.hls.directory / "kernel.json").read_text())
+    params = {p["name"]: p for p in interface["params"]}
+    assert {n: (p["direction"], p["shape"], p["ports"]) for n, p in params.items()} == {
+        "A": ("in", [4, 4], 2), "B": ("in", [4, 4], 2), "C": ("out", [4, 4], 2)}
+    latency = interface["latency"]
+    assert isinstance(latency["best"], int) and latency["best"] <= latency["worst"]
+
+
 @pytest.mark.skipif(shutil.which("verilator") is None, reason="verilator not on PATH")
 def test_systolic_isax_end_to_end(full_build, tmp_path):
     dram, commands, want = _scenario(np.random.default_rng(5))
