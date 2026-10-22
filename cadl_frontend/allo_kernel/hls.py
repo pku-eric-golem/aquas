@@ -3,12 +3,19 @@
 Allo's `vivado_hls` target emits array arguments as C arrays and skips the
 `vitis_hls` post-processing that adds m_axi pragmas, so no AXI is generated.
 Interfaces are pinned with Tcl directives instead of editing the C++.
+
+Allo turns return values into trailing output arguments (an array, or a
+pointer for a scalar), in Python return order. Its Vivado HLS emitter ignores
+the `outputs` naming attribute, so they keep Allo's value names (v1, ...),
+which are read back from the emitted signature. Array returns use ap_memory
+like array arguments, scalar returns ap_vld.
 """
 from __future__ import annotations
 
 import json
+import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from allo._mlir.dialects import func as func_d
@@ -31,6 +38,7 @@ class HLSProject:
     params: list[KernelParam]
     float_calls: dict[str, int]
     memory_latency: int  # read latency of every ap_memory port, in cycles
+    returns: list[KernelParam] = field(default_factory=list)  # in Python return order
 
 
 def _walk(op):
@@ -65,6 +73,42 @@ def name_ports(schedule) -> list[KernelParam]:
                                   str(arg.dtype), arg.dtype.bits,
                                   tuple(MemRefType(ty).shape) if memory else ()))
     return params
+
+
+def _element(ty, signedness: str) -> tuple[str, int]:
+    """Allo-style element type name and width of an MLIR type, e.g. ("ui8", 8)."""
+    name = str(MemRefType(ty).element_type if MemRefType.isinstance(ty) else ty)
+    match = re.fullmatch(r"(i|f|bf)(\d+)", name)
+    if not match:
+        raise NotImplementedError(f"return element type {name}")
+    return ("u" if signedness == "u" else "") + name, int(match[2])
+
+
+def _signature(code: str, top: str) -> list[str]:
+    """Argument names of the top function in emitted HLS C++."""
+    match = re.search(rf"^void {re.escape(top)}\(\n([^()]*?)\n\) {{", code, re.M)
+    if not match:
+        raise ValueError(f"no definition of {top} in the HLS code")
+    return [re.match(r"[^\[]*?\*?(\w+)(?:\[|$)", arg.strip())[1]
+            for arg in match[1].split(",\n")]
+
+
+def find_returns(schedule, code: str, inputs: int) -> list[KernelParam]:
+    """The output arguments Allo emitted for the return values, in return order."""
+    top = schedule.top_func
+    results = list(top.type.results)
+    names = _signature(code, schedule.top_func_name)
+    if len(names) != inputs + len(results):
+        raise ValueError(f"{schedule.top_func_name}: {len(names)} HLS arguments for "
+                         f"{inputs} inputs and {len(results)} return values")
+    signs = StringAttr(top.attributes["otypes"]).value if "otypes" in top.attributes else ""
+    returns = []
+    for i, (name, ty) in enumerate(zip(names[inputs:], results)):
+        dtype, bits = _element(ty, signs[i] if i < len(signs) else "")
+        memory = MemRefType.isinstance(ty)
+        returns.append(KernelParam(name, "ap_memory" if memory else "ap_vld", dtype, bits,
+                                   tuple(MemRefType(ty).shape) if memory else ()))
+    return returns
 
 
 def lower_float_ops(schedule) -> dict[str, int]:
@@ -119,12 +163,13 @@ def emit_project(schedule, directory: Path, *, part: str = "xc7z020clg400-1",
     calls = lower_float_ops(schedule)
     blackboxes = build_blackboxes(directory / "blackbox", list(calls))
     code = schedule.build(target="vivado_hls").hls_code
+    returns = find_returns(schedule, code, len(ports))
     if calls:
         code = '#include "blackbox/hardfloat_model.h"\n' + code
     (directory / "kernel.cpp").write_text(code)
     (directory / "run.tcl").write_text(
-        _tcl(schedule.top_func_name, ports, blackboxes, part, clock_ns, memory_latency))
-    return HLSProject(schedule.top_func_name, directory, ports, calls, memory_latency)
+        _tcl(schedule.top_func_name, ports + returns, blackboxes, part, clock_ns, memory_latency))
+    return HLSProject(schedule.top_func_name, directory, ports, calls, memory_latency, returns)
 
 
 def run_csynth(project: HLSProject, vitis_hls: str = "vitis_hls") -> Path:

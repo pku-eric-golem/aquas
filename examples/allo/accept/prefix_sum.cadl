@@ -1,0 +1,52 @@
+// Route 1 acceptance kernel (array result), built by tools/allo-gen.
+// Integer only, so the interface is tested without HardFloat. SPM offsets
+// and counts are elements; _mem addresses are bytes.
+static pre_x: [i32; 256];
+static pre_y: [i32; 256];
+
+allo prefix_sum with s """
+import allo
+from allo.ir.types import int32
+
+
+def prefix_sum(X: int32[16]) -> int32[16]:
+    Y: int32[16] = 0
+    acc: int32 = 0
+    for i in range(16):
+        acc += X[i]
+        Y[i] = acc
+    return Y
+
+
+s = allo.customize(prefix_sum)
+""";
+
+// rs1: X tile. rs2: Y tile. 16-element tiles.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype psum(rs1: u5, rs2: u5, rd: u5) {
+    let tile_x: u32 = _irf[rs1] & 32'hF;
+    let tile_y: u32 = _irf[rs2] & 32'hF;
+    invoke prefix_sum(X = pre_x[tile_x * 16 +: 16]) -> pre_y[tile_y * 16 +: 16];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: pre_x element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_x(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    pre_x[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: pre_y element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype store_y(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    _mem[dram_base +: 16] = pre_y[spm_base +: ];
+    _irf[rd] = 0;
+}

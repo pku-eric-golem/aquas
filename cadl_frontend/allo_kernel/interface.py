@@ -2,7 +2,8 @@
 
 `classify` groups the synthesized ports by kernel parameter: an ap_memory
 array becomes one MemoryPort per port index (A_address0/A_ce0/A_q0, ...), an
-ap_none scalar maps to its single port.
+ap_none scalar maps to its single port, and an ap_vld scalar return to its
+data port, with the strobe at `<name>_ap_vld`.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ CONTROL = ("ap_start", "ap_done", "ap_idle", "ap_ready")
 @dataclass
 class KernelParam:
     name: str
-    kind: str  # "ap_memory" or "ap_none"
+    kind: str  # "ap_memory", "ap_none" (scalar argument) or "ap_vld" (scalar return)
     dtype: str | None = None  # Allo element type, e.g. "f32", "ui8"
     bits: int | None = None
     shape: tuple[int, ...] = ()  # () for scalars
@@ -43,10 +44,17 @@ class HlsInstance:
     ports: list[HlsPort]
     memories: list[MemoryPort]
     scalars: dict[str, HlsPort]
+    results: dict[str, HlsPort] = field(default_factory=dict)  # ap_vld returns
+    params: list[KernelParam] = field(default_factory=list)
+    returns: list[KernelParam] = field(default_factory=list)
 
     @staticmethod
     def signal(port: str) -> str:
         return f"hls_{port}"
+
+    @staticmethod
+    def valid(result: str) -> str:
+        return f"{result}_ap_vld"
 
 
 def load_rtl_ports(verilog: Path) -> list[HlsPort]:
@@ -58,23 +66,33 @@ def load_rtl_ports(verilog: Path) -> list[HlsPort]:
             for direction, high, name in found]
 
 
-def classify(top: str, rtl_ports: list[HlsPort], params: list[KernelParam]) -> HlsInstance:
+def classify(top: str, rtl_ports: list[HlsPort], params: list[KernelParam],
+             returns: list[KernelParam] = ()) -> HlsInstance:
     memories: dict[tuple[str, int], MemoryPort] = {}
-    scalars = {}
-    kinds = {p.name: p.kind for p in params}
+    scalars, results, strobes = {}, {}, set()
+    kinds = {p.name: p.kind for p in [*params, *returns]}
     for port in rtl_ports:
         if port.name in ("ap_clk", "ap_rst") or port.name in CONTROL:
             continue
         if kinds.get(port.name) == "ap_none":
             scalars[port.name] = port
             continue
+        if kinds.get(port.name) == "ap_vld":
+            results[port.name] = port
+            continue
+        if port.name.endswith("_ap_vld") and kinds.get(port.name[:-7]) == "ap_vld":
+            strobes.add(port.name[:-7])
+            continue
         match = re.fullmatch(r"(\w+)_(address|ce|we|q|d)(\d+)", port.name)
         if not match or kinds.get(match[1]) != "ap_memory":
             raise ValueError(f"unexpected HLS port {port.name} on {top}")
         key = (match[1], int(match[3]))
         memories.setdefault(key, MemoryPort(*key)).signals[match[2]] = port
-    missing = [p.name for p in params
-               if p.name not in scalars and all(m.param != p.name for m in memories.values())]
+    missing = [p.name for p in [*params, *returns]
+               if p.name not in scalars and p.name not in results
+               and all(m.param != p.name for m in memories.values())]
+    missing += [HlsInstance.valid(name) for name in results if name not in strobes]
     if missing:
         raise ValueError(f"parameters without RTL ports on {top}: {missing}")
-    return HlsInstance(top, rtl_ports, list(memories.values()), scalars)
+    return HlsInstance(top, rtl_ports, list(memories.values()), scalars, results,
+                       list(params), list(returns))

@@ -18,6 +18,7 @@ class Spm:
     index: int
     elements: int
     elem_bits: int
+    is_float: bool = False
 
     @property
     def signal(self) -> str:
@@ -49,6 +50,9 @@ class SpmLayout:
         return f"{addr}[{self.offset_bits - 1}:{int(math.log2(self.elem_bytes))}]"
 
 
+_FLOATS = (ast.BasicType_Float32, ast.BasicType_Float64, ast.BasicType_BFloat16)
+
+
 def _bits(ty: ast.BasicType) -> int:
     if isinstance(ty, ast.BasicType_Float32):
         return 32
@@ -64,7 +68,8 @@ def build_layout(proc: ast.Proc) -> SpmLayout:
               if isinstance(s.ty, ast.DataType_Array)]
     if not arrays:
         raise ValueError("proc declares no static arrays")
-    spms = [Spm(name, index, math.prod(ty.dimensions), _bits(ty.element_type))
+    spms = [Spm(name, index, math.prod(ty.dimensions), _bits(ty.element_type),
+                isinstance(ty.element_type, _FLOATS))
             for index, (name, ty) in enumerate(arrays)]
     if {spm.elem_bits for spm in spms} != {32}:
         # Burst lanes are carved from the beat in element-sized slices.

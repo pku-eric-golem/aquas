@@ -1,7 +1,8 @@
 """The interface manifest of a built kernel: what a wrapper needs to drive it.
 
-Per parameter it records the Allo element type and shape, and for arrays the
-flattening order, the number of ap_memory ports and their read latency. Fields
+Per parameter and per return value (ret0, ret1, ... in Python return order,
+with the RTL port name Allo gave it) it records the Allo element type and shape, and for arrays the flattening
+order, the number of ap_memory ports and their read latency. Fields
 that only the RTL can tell (direction, port count) are None until RTL exists;
 the compute latency comes from the Vitis report and is None without one.
 """
@@ -34,6 +35,8 @@ def _direction(param: KernelParam, instance: HlsInstance | None) -> str | None:
         return None
     if param.kind == "ap_none":
         return "in"
+    if param.kind == "ap_vld":
+        return "out"
     roles = {role for m in instance.memories if m.param == param.name for role in m.signals}
     reads, writes = "q" in roles, "d" in roles
     return "inout" if reads and writes else "in" if reads else "out" if writes else None
@@ -57,6 +60,9 @@ def kernel_manifest(project: HLSProject, instance: HlsInstance | None,
         "control": CONTROL,
         "latency": latency,
         "params": [_param(p, instance, project.memory_latency) for p in project.params],
+        "returns": [{"name": f"ret{i}", "port": r.name}
+                    | {k: v for k, v in _param(r, instance, project.memory_latency).items()
+                       if k != "name"} for i, r in enumerate(project.returns)],
         "float_calls": project.float_calls,
         "rtl": rtl,
     }

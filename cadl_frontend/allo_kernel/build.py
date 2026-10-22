@@ -43,7 +43,7 @@ def build_kernel(schedule, directory: Path, *, rtl: Path | None = None, csynth: 
     instance, source = None, None
     if rtl_dir is not None:
         instance = classify(project.top, load_rtl_ports(rtl_dir / f"{project.top}.v"),
-                            project.params)
+                            project.params, project.returns)
         source = {"source": str(rtl_dir), "provenance": provenance}
     manifest = kernel_manifest(project, instance, latency, source)
     (project.directory / "kernel.json").write_text(json.dumps(manifest, indent=2) + "\n")

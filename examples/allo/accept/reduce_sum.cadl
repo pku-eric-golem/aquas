@@ -1,0 +1,38 @@
+// Route 1 acceptance kernel (scalar reduction result), built by tools/allo-gen.
+// Integer only, so the interface is tested without HardFloat. SPM offsets
+// and counts are elements; _mem addresses are bytes.
+static red_x: [i32; 256];
+
+allo reduce_sum with s """
+import allo
+from allo.ir.types import int32
+
+
+def reduce_sum(X: int32[16]) -> int32:
+    total: int32 = 0
+    for i in range(16):
+        total += X[i]
+    return total
+
+
+s = allo.customize(reduce_sum)
+""";
+
+// rs1: X tile (16 elements). rd: the sum.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype rsum(rs1: u5, rs2: u5, rd: u5) {
+    let tile: u32 = _irf[rs1] & 32'hF;
+    invoke reduce_sum(X = red_x[tile * 16 +: 16]) -> total: i32;
+    _irf[rd] = total;
+}
+
+// rs1: DRAM byte address. rs2: red_x element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_x(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    red_x[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 0;
+}

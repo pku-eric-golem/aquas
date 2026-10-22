@@ -1,0 +1,50 @@
+// Route 1 acceptance kernel (two-dimensional arrays and a scalar argument), built by tools/allo-gen.
+// Integer only, so the interface is tested without HardFloat. SPM offsets
+// and counts are elements; _mem addresses are bytes.
+static mat_a: [i32; 256];
+static mat_b: [i32; 256];
+
+allo mat_scale with s """
+import allo
+from allo.ir.types import int32
+
+
+def mat_scale(A: int32[4, 8], k: int32, B: int32[4, 8]):
+    for i, j in allo.grid(4, 8):
+        B[i, j] = A[i, j] * k + i - j
+
+
+s = allo.customize(mat_scale)
+""";
+
+// rs1: (A tile << 16) | B tile, 32-element (4x8 row-major) tiles. rs2: k.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype mscale(rs1: u5, rs2: u5, rd: u5) {
+    let r1: u32 = _irf[rs1];
+    let k: i32 = _irf[rs2];
+    let tile_a: u32 = (r1 >> 16) & 32'h7;
+    let tile_b: u32 = r1 & 32'h7;
+    invoke mat_scale(A = mat_a[tile_a * 32 +: 32], k = k, B = mat_b[tile_b * 32 +: 32]);
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: mat_a element offset. 32 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_a(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    mat_a[spm_base +: ] = _mem[dram_base +: 32];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: mat_b element offset. 32 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype store_b(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    _mem[dram_base +: 32] = mat_b[spm_base +: ];
+    _irf[rd] = 0;
+}

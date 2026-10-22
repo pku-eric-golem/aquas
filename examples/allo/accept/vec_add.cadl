@@ -1,0 +1,62 @@
+// Route 1 acceptance kernel (vector inputs and output), built by tools/allo-gen.
+// Integer only, so the interface is tested without HardFloat. SPM offsets
+// and counts are elements; _mem addresses are bytes.
+static vec_a: [i32; 256];
+static vec_b: [i32; 256];
+static vec_c: [i32; 256];
+
+allo vec_add with s """
+import allo
+from allo.ir.types import int32
+
+
+def vec_add(A: int32[16], B: int32[16], C: int32[16]):
+    for i in range(16):
+        C[i] = A[i] + B[i]
+
+
+s = allo.customize(vec_add)
+""";
+
+// rs1: (A tile << 16) | B tile. rs2: C tile. 16-element tiles.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype vadd(rs1: u5, rs2: u5, rd: u5) {
+    let r1: u32 = _irf[rs1];
+    let tile_c: u32 = _irf[rs2] & 32'hF;
+    let tile_a: u32 = (r1 >> 16) & 32'hF;
+    let tile_b: u32 = r1 & 32'hF;
+    invoke vec_add(A = vec_a[tile_a * 16 +: 16], B = vec_b[tile_b * 16 +: 16],
+                   C = vec_c[tile_c * 16 +: 16]);
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: vec_a element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_a(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    vec_a[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: vec_b element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000001)]
+rtype load_b(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    vec_b[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: vec_c element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype store_c(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    _mem[dram_base +: 16] = vec_c[spm_base +: ];
+    _irf[rd] = 0;
+}

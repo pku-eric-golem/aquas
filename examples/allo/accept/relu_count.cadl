@@ -1,0 +1,53 @@
+// Route 1 acceptance kernel (mixed array and scalar results), built by tools/allo-gen.
+// Integer only, so the interface is tested without HardFloat. SPM offsets
+// and counts are elements; _mem addresses are bytes.
+static relu_x: [i32; 256];
+static relu_y: [i32; 256];
+
+allo relu_count with s """
+import allo
+from allo.ir.types import int32
+
+
+def relu_count(X: int32[16]) -> (int32[16], int32):
+    Y: int32[16] = 0
+    positive: int32 = 0
+    for i in range(16):
+        if X[i] > 0:
+            Y[i] = X[i]
+            positive += 1
+    return Y, positive
+
+
+s = allo.customize(relu_count)
+""";
+
+// rs1: X tile. rs2: Y tile. rd: how many elements of X are positive.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype relu(rs1: u5, rs2: u5, rd: u5) {
+    let tile_x: u32 = _irf[rs1] & 32'hF;
+    let tile_y: u32 = _irf[rs2] & 32'hF;
+    invoke relu_count(X = relu_x[tile_x * 16 +: 16]) -> (relu_y[tile_y * 16 +: 16], positive: i32);
+    _irf[rd] = positive;
+}
+
+// rs1: DRAM byte address. rs2: relu_x element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_x(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    relu_x[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: relu_y element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype store_y(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    _mem[dram_base +: 16] = relu_y[spm_base +: ];
+    _irf[rd] = 0;
+}
