@@ -216,8 +216,13 @@ struct BinOpConversionPattern : public IndexTypeConversionPattern<SourceOp> {
     auto resType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
 
+    // Preserve FP permissions so the hardware backend can reject unsupported
+    // modes rather than silently losing semantics during arith -> TOR.
+    auto fastMath = op->getAttr("fastmath");
     auto newOp = rewriter.replaceOpWithNewOp<TargetOp>(
         op, resType, (*operands)[0], (*operands)[1], 0, 0);
+    if (fastMath)
+      newOp->setAttr("fastmath", fastMath);
     if (!op->hasAttr("dump")) {
       op->setAttr("dump", StringAttr::get(rewriter.getContext(),
                                           get_tmp_attr().c_str()));
@@ -264,6 +269,7 @@ struct SimpleOpConversion : public IndexTypeConversionPattern<SourceOp> {
 };
 
 using ShiftLeftConversionPattern = SimpleOpConversion<ShLIOp>;
+using AndIConversionPattern = SimpleOpConversion<AndIOp>;
 using OrIConversionPattern = SimpleOpConversion<OrIOp>;
 using SelectConversionPattern = SimpleOpConversion<SelectOp>;
 using LoadOpConversion = SimpleOpConversion<tor::LoadOp>;
@@ -781,6 +787,8 @@ struct CmpFOpConversion : public OpConversionPattern<CmpFOp> {
     auto newOp =
         rewriter.create<tor::CmpFOp>(op.getLoc(), op.getResult().getType(),
                                      predicate, operands[0], operands[1], 0, 0);
+    if (auto fastMath = op->getAttr("fastmath"))
+      newOp->setAttr("fastmath", fastMath);
 
     if (!op->hasAttr("dump")) {
       op->setAttr("dump", StringAttr::get(rewriter.getContext(),
@@ -1340,6 +1348,7 @@ struct SCFToTORPass : SCFToTORBase<SCFToTORPass> {
       target.addDynamicallyLegalOp<ShRUIOp>(hasIndexType);
       target.addDynamicallyLegalOp<ShLIOp>(hasIndexType);
       target.addDynamicallyLegalOp<OrIOp>(hasIndexType);
+      target.addDynamicallyLegalOp<AndIOp>(hasIndexType);
       target.addDynamicallyLegalOp<ConstantOp>(hasIndexType);
       target.addDynamicallyLegalOp<tor::LoadOp>(hasIndexType);
       target.addDynamicallyLegalOp<tor::StoreOp>(hasIndexType);
@@ -1362,7 +1371,8 @@ struct SCFToTORPass : SCFToTORBase<SCFToTORPass> {
                DivUIOpConversion, DivSIOpConversion, RemUIOpConversion,
                RemSIOpConversion, SIToFPOpConversion, ShRSIOpConversion,
                ShRUIOpConversion, ShiftLeftConversionPattern,
-               OrIConversionPattern, SelectConversionPattern, LoadOpConversion,
+               AndIConversionPattern, OrIConversionPattern,
+               SelectConversionPattern, LoadOpConversion,
                StoreOpConversion, GuardedStoreOpConversion,
                IndexCastOpConversion, CpuRfReadConversion, CpuRfWriteConversion
                /*MoveConstantUp, CallOpConversion*/>(converter, &getContext());

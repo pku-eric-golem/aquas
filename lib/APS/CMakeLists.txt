@@ -1,3 +1,15 @@
+set(APS_HARDFLOAT_CONFIG "${PROJECT_BINARY_DIR}/include/APS/HardFloatConfig.h")
+add_custom_command(
+  OUTPUT "${APS_HARDFLOAT_CONFIG}"
+  COMMAND "${Python3_EXECUTABLE}"
+          "${PROJECT_SOURCE_DIR}/hardware/hardfloat/build-hardfloat-ip.py"
+          "--cpp-output=${APS_HARDFLOAT_CONFIG}"
+  DEPENDS "${PROJECT_SOURCE_DIR}/hardware/hardfloat/ip_catalog.yaml"
+          "${PROJECT_SOURCE_DIR}/hardware/hardfloat/build-hardfloat-ip.py"
+  VERBATIM
+)
+add_custom_target(APSFloatIPConfig DEPENDS "${APS_HARDFLOAT_CONFIG}")
+
 add_mlir_library(APS
   aps.cpp
   NormalizeSCFForIndices.cpp
@@ -11,6 +23,9 @@ add_mlir_library(APS
   RaiseMemRefToAffine.cpp
   DuplicateMemLoads.cpp
   APSFunctionalToArch.cpp
+  ScratchpadElision.cpp
+  APSMemorySchedule.cpp
+  OptimizeStorage.cpp
   LowerAPSMemToReqCollect.cpp
   PlaceReadRFAtEntry.cpp
   PromoteSingletonMemRefToGlobal.cpp
@@ -22,10 +37,13 @@ add_mlir_library(APS
   APSToCMT2/LoopHandler.cpp
   APSToCMT2/IfHandler.cpp
   APSToCMT2/ArithmeticOpGenerator.cpp
+  APSToCMT2/FloatOpGenerator.cpp
+  APSToCMT2/FloatIPLibrary.cpp
   APSToCMT2/RegisterOpGenerator.cpp
   APSToCMT2/MemoryOpGenerator.cpp
   APSToCMT2/InterfaceOpGenerator.cpp
   APSToCMT2/InterfaceGenerator.cpp
+  APSToCMT2/TokenFIFO.cpp
   APSToCMT2/MemoryGenerator.cpp
   APSToCMT2/GlobalRegisterGenerator.cpp
 
@@ -37,6 +55,7 @@ add_mlir_library(APS
   MLIRAPSIncGen
   MLIRAPSPassIncGen
   MLIRTORIncGen
+  APSFloatIPConfig
 
   LINK_LIBS PUBLIC
   MLIRAffineDialect

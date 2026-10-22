@@ -60,6 +60,9 @@ pixi run build
 pixi run setup-chipyard
 ```
 
+`pixi run build` also builds `build/tools/scaleisa-opt/scaleisa-opt` and the Rust
+engine at `scaleisa/tools/scaleisa-engine/target/debug/scaleisa-engine`.
+
 ### Quick Start
 
 The `tutorial/` directory contains example CADL files and scripts. Here's a simple example (`tutorial/cadl/hello.cadl`):
@@ -76,6 +79,12 @@ rtype hello(rs1: u5, rs2: u5, rd: u5) {
 ```
 
 See the `tutorial/` directory for more examples including matrix operations (`vgemv3d.cadl`) and distance calculations (`v3ddist_vv.cadl`).
+
+#### CADL Editor Support
+
+VS Code and Zed syntax-highlighting extensions are available in
+[`editors/cadl/`](editors/cadl/README.md), with build, installation, and testing
+instructions. Both recognize `.cadl` files and follow the current frontend grammar.
 
 #### Full ASIP Pipeline
 ```bash

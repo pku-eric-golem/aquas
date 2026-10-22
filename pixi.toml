@@ -15,7 +15,7 @@ LEGACY_FIRTOOL_PATH = "https://github.com/llvm/circt/releases/download/firtool-1
 LEGACY_FIRTOOL = "${PIXI_PROJECT_ROOT}/thirdparty/firtool-1.75.0/bin/firtool" # this is for chipyard compatibility
 # tutorial docker environment
 APS = "${PIXI_PROJECT_ROOT}"
-APS_CHIPYARD = "${PIXI_PROJECT_ROOT}/../aps-mlir-chipyard"
+APS_CHIPYARD = "${PIXI_PROJECT_ROOT}/thirdparty/chipyard"
 APS_SIM = "${APS_CHIPYARD}/sims/verilator"
 APS_VLSI = "${APS_CHIPYARD}/nextvlsi"
 
@@ -28,7 +28,7 @@ clean = { cmd = "rm -rf build"}
 # Prepare Chipyard environment
 setup-yosys-slang = { cmd = "test -f __setup-yosys-slang.success || (bash scripts/setup-yosys-slang.sh && touch __setup-yosys-slang.success)" }
 setup-verilator = { cmd = "test -f \"$CONDA_PREFIX/.aps-setup-verilator.success\" || (sed -i -e 's|^AR *= *.*|AR = /usr/bin/ar|' -e 's|^CXX *= *.*|CXX = /usr/bin/g++|' -e 's|^LINK *= *.*|LINK = /usr/bin/g++|' \"$CONDA_PREFIX/share/verilator/include/verilated.mk\" && touch \"$CONDA_PREFIX/.aps-setup-verilator.success\")" }
-setup-firtool = { cmd = "test -f  __setup-firtool.success || (mkdir -p thirdparty && cd thirdparty && wget -O firtool.tar.gz \"$LEGACY_FIRTOOL_PATH\" && tar xvzf firtool.tar.gz && rm firtool.tar.gz && touch __setup-firtool.success)"}
+setup-firtool = { cmd = "test -x \"$LEGACY_FIRTOOL\" || (mkdir -p thirdparty && cd thirdparty && wget -O firtool.tar.gz \"$LEGACY_FIRTOOL_PATH\" && tar xvzf firtool.tar.gz && rm firtool.tar.gz)"}
 setup-chipyard = { cmd = "git submodule update --init && cd thirdparty/chipyard && bash ./scripts/init-submodules-no-riscv-tools-nolog.sh && bash ./scripts/build-toolchain-extra-32.sh -p \"$RISCV\"", depends-on = ["setup-yosys-slang", "setup-verilator", "setup-firtool"]}
 check-chipyard = { cmd = "test -f thirdparty/chipyard/toolchains/riscv-tools/riscv-pk/README.md"}
 # or, install extra RISC-V tools after after submodule init with
@@ -48,12 +48,12 @@ cmd =  "$PIXI_PROJECT_ROOT/tools/aps-frontend mlir {{ cadl }} > {{ apsir }}"
 
 # HLS Synthesis Engine
 [tasks.syn]
-args = [{ arg = "apsir" }, { arg = "output" }, { arg = "extra_args", default = "" }]
-cmd = "build/tools/aps-opt/aps-e2e --clock 4.0 -i {{ apsir }} -o {{ output }} {{ extra_args }} --export sv"
+args = [{ arg = "apsir" }, { arg = "output" }, { arg = "interface_config", default = "examples/interface.json" }, { arg = "chipyard_config", default = "thirdparty/chipyard/aps_config.yaml" }, { arg = "extra_args", default = "" }]
+cmd = "build/tools/aps-opt/aps-e2e --clock 4.0 -i {{ apsir }} -o {{ output }} --interface-config \"{{ interface_config }}\" --chipyard-config \"{{ chipyard_config }}\" {{ extra_args }} --export sv"
 
 [tasks.syn-debug]
-args = [{ arg = "apsir" }, { arg = "output" }, { arg = "log" }, { arg = "extra_args", default = "" }]
-cmd = "build/tools/aps-opt/aps-e2e --clock 4.0 -i {{ apsir }} -o {{ output }} {{ extra_args }} --export sv --print-ir-after-all 2> {{ log }}"
+args = [{ arg = "apsir" }, { arg = "output" }, { arg = "log" }, { arg = "interface_config", default = "examples/interface.json" }, { arg = "chipyard_config", default = "thirdparty/chipyard/aps_config.yaml" }, { arg = "extra_args", default = "" }]
+cmd = "build/tools/aps-opt/aps-e2e --clock 4.0 -i {{ apsir }} -o {{ output }} --interface-config \"{{ interface_config }}\" --chipyard-config \"{{ chipyard_config }}\" {{ extra_args }} --export sv --print-ir-after-all 2> {{ log }}"
 
 # Megg Retargetable Compiler
 [tasks.compile]
@@ -67,6 +67,15 @@ cmd = "tools/aps-megg compile {{ cadl }} {{ test_c }} {{ output }} --handson"
 [tasks.compile-native]
 args = ["test_c", "output"]
 cmd = "riscv32-unknown-elf-gcc -std=gnu99 -O3 -Wall -Wextra -fno-common -fno-builtin-printf -march=rv32imaf_zicsr_zifencei -mabi=ilp32f -mcmodel=medany -specs=htif_nano.specs -static -T htif.ld -I$MEGGINCLUDE -o {{ output }} {{ test_c }} -lm"
+
+[tasks.build-hardfloat-ip]
+cmd = "mkdir -p build/hardfloat && cd build/hardfloat && bash ../../hardware/hardfloat/build-hardfloat-ip.sh --resource-output=resource.json"
+
+[tasks.hardfloat-acceptance]
+cmd = "bash examples/hardfloat/hardfloat-acceptance.sh"
+
+[tasks.bf16-gemm-rocket]
+cmd = "bash examples/hardfloat/bf16_gemm/bf16-gemm-rocket.sh"
 
 # APS Spike + Verilator co-sim
 [tasks.aps-cosim-clean]
@@ -108,6 +117,9 @@ iverilog = ">=11.0,<12"
 yosys = ">=0.65"
 jq = ">=1.8.1,<2"
 ortools-cpp = ">=9.1,<10"
+dtc = ">=1.7.2,<2"
+rust = ">=1.99.0,<1.100"
+coin-or-cbc = ">=2.10.13,<3"
 
 [pypi-dependencies]
 lark = ">=1.1.0"

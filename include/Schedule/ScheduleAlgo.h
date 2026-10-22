@@ -130,7 +130,7 @@ public:
       rsc = RDB.getResourceID("memport_RAM_1P");
     } else if (storageType == "RAM_T2P") {
       rsc = RDB.getResourceID("memport_RAM_T2P");
-    } else if (llvm::isa<aps::ReadSmem>(op) || llvm::isa<aps::WriteSmem>(op)) {
+    } else if (llvm::isa<aps::ReadSmem>(op) || llvm::isa<aps::WriteSmem, aps::WriteSmemIf>(op)) {
       // For APS memory operations, use per-memref resources
       // All memories are treated as 1RW (one read or write per cycle)
       rsc = RDB.getOrCreateMemrefResource(memref);
@@ -251,6 +251,19 @@ public:
     D.DestinationOp->addPred(Dependencies.back().get());
   }
 
+  int getOperationLatency(OpAbstract *op) {
+    if (auto *ir = op->getOp())
+      if (auto latency = ir->getAttrOfType<IntegerAttr>("memory_latency"))
+        return latency.getInt();
+    return RDB.getLatency(op->getResource(), op->getWidth());
+  }
+
+  int getDependencyLatency(Dependence *dependency) {
+    if (dependency->type == Dependence::D_ISSUE)
+      return dependency->issueDelay;
+    return getOperationLatency(dependency->SourceOp);
+  }
+
   /// build Dependency from containingOp;
   void setClockFrequence(int Cycle) { ClockPeriod = Cycle; }
 
@@ -334,7 +347,7 @@ public:
     }
 
     OpAbstract *opA = OperationMap[op];
-    int latency = std::max(1, RDB.getLatency(opA->getResource(), opA->getWidth()));
+    int latency = std::max(1, getOperationLatency(opA));
     if (llvm::isa<tor::CallOp>(opA->getOp())) {
       latency = getLatency(opA);
     }

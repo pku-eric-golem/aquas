@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "APS/BlockHandler.h"
+#include "APS/HardwareValueUtils.h"
 #include "APS/BBHandler.h"
 #include "APS/IfHandler.h"
 #include "APS/LoopHandler.h"
@@ -288,7 +289,7 @@ LogicalResult BlockHandler::createBlockTokenFIFOs() {
     BlockInfo &currentBlock = blocks[i];
     BlockInfo &nextBlock = blocks[i + 1];
 
-    auto *tokenMod = STLLibrary::createFIFO2IModule(1, circuit);
+    auto *tokenMod = pass->createTokenFIFO(circuit, 2);
     builder.restoreInsertionPoint(savedIP);
 
     std::string tokenName = namePrefix + "b" +
@@ -876,11 +877,9 @@ std::string BlockHandler::getFIFOName(StringRef prefix, unsigned blockId, String
 }
 
 unsigned BlockHandler::getBitWidth(mlir::Type type) {
-  if (auto intType = dyn_cast<mlir::IntegerType>(type)) {
-    return intType.getWidth();
-  }
-  // Default to 32 bits for unknown types
-  return 32;
+  if (auto width = getHardwareBitWidth(type))
+    return *width;
+  llvm::report_fatal_error("unsupported cross-block hardware type (expected integer or f32)");
 }
 
 LogicalResult BlockHandler::processAllBlocks() {
@@ -1226,7 +1225,7 @@ LogicalResult BlockHandler::createInputDistributionRegs() {
   auto savedIP = builder.saveInsertionPoint();
 
   // 1. Create token FIFO: capture rule -> first sub-block.
-  auto *tokenFifoMod = STLLibrary::createFIFO2IModule(1, circuit);
+  auto *tokenFifoMod = pass->createTokenFIFO(circuit, 2);
   builder.restoreInsertionPoint(savedIP);
   std::string tokenFifoName = namePrefix + "captok";
   input_distribution_token_fifo = mainModule->addInstance(

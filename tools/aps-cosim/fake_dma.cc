@@ -29,11 +29,11 @@ void FakeDma::driveInputs(Vmain &top) {
   top.dma_cpu_to_isax_ch0_ready = canQueue;
   top.dma_isax_to_cpu_ch0_ready = canQueue;
   top.dma_poll_for_idle_ch0_ready = isIdle;
-  top.dma_poll_for_idle_ch0_res0 = isIdle;
+  top.dma_poll_for_idle_ch0_ = isIdle;
   top.dma_cpu_to_isax_ch1_ready = canQueue;
   top.dma_isax_to_cpu_ch1_ready = canQueue;
   top.dma_poll_for_idle_ch1_ready = isIdle;
-  top.dma_poll_for_idle_ch1_res0 = isIdle;
+  top.dma_poll_for_idle_ch1_ = isIdle;
 
   top.burst_read_0_enable = 0;
   top.burst_read_0_addr = 0;
@@ -122,9 +122,9 @@ void FakeDma::sampleOutputs(Vmain &top) {
       if (traceEnabled())
         std::cerr << "fake-dma read-data cpu=0x" << std::hex
                   << current_.cpuAddr + offset_ << " data=0x"
-                  << static_cast<uint64_t>(top.burst_read_1_res0) << std::dec
+                  << static_cast<uint64_t>(top.burst_read_1_) << std::dec
                   << "\n";
-      memory_.store64(current_.cpuAddr + offset_, top.burst_read_1_res0);
+      memory_.store64(current_.cpuAddr + offset_, top.burst_read_1_);
       advanceTransfer();
       if (offset_ >= current_.bytes) {
         if (traceEnabled())
@@ -207,14 +207,19 @@ void FakeDma::serviceHella(const Vmain &top) {
               << addr << " data=0x" << data << " mask=0x" << unsigned(mask)
               << std::dec << "\n";
 
-  // Rocket M_XRD = 0, M_XWR = 1.
+  // Rocket M_XRD = 0, M_XWR = 1. For ordinary writes Rocket derives
+  // the byte mask from size/address; the explicit mask is for M_PWR only
+  // (rocket/DCache.scala s1_mask_xwr/s1_mask). APS currently emits M_XWR.
+  if (size > 2)
+    throw std::runtime_error("HellaCache transfer exceeds the 32-bit APS port");
+  unsigned bytes = 1u << size;
   if (cmd == 0) {
-    hellaRespData_ = size == 0 ? memory_.load8(addr) : memory_.load32(addr);
+    hellaRespData_ = 0;
+    for (unsigned i = 0; i < bytes; ++i)
+      hellaRespData_ |= uint32_t(memory_.load8(addr + i)) << (8 * i);
   } else if (cmd == 1) {
-    if (size == 0)
-      memory_.store8(addr, static_cast<uint8_t>(data));
-    else
-      memory_.store32(addr, data, mask);
+    for (unsigned i = 0; i < bytes; ++i)
+      memory_.store8(addr + i, static_cast<uint8_t>(data >> (8 * i)));
     hellaRespData_ = 0;
   } else {
     throw std::runtime_error("unsupported HellaCache command");

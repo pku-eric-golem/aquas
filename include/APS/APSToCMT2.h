@@ -47,6 +47,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <string>
 #include <iomanip>
+#include <map>
 
 namespace mlir {
 
@@ -227,6 +228,9 @@ struct APSToCMT2Pass
 
   void runOnOperation() override;
 
+  // IEEE bit patterns for scalar reset initialization (never host arithmetic).
+  std::map<std::string, uint32_t> floatRegisterInitializers;
+
 private:
   /// Get memref.global by symbol name
   memref::GlobalOp getGlobalMemRef(mlir::Operation *scope,
@@ -299,8 +303,13 @@ private:
 
   Module *
   generateRoCCAdapter(Circuit &circuit,
-                      const llvm::SmallVector<unsigned long, 4> &instructionIds);
+                      const llvm::SmallVector<unsigned long, 4> &instructionIds,
+                      bool compactCommands = false, bool zeroResponses = false);
 public:
+  /// Control-only FIFOs use occupancy state, never a stored data payload.
+  Module *createTokenFIFO(Circuit &circuit, unsigned depth);
+  bool elideTokenPayloads = false;
+
   // Memory entry map for fast lookup by name
   llvm::DenseMap<llvm::StringRef, MemoryEntryInfo> memEntryMap;
 

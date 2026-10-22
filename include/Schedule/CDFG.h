@@ -47,7 +47,7 @@ public:
 
 struct Dependence {
 public:
-  enum DependenceType { D_RAW, D_WAW, D_WAR, D_RAR };
+  enum DependenceType { D_RAW, D_WAW, D_WAR, D_RAR, D_ISSUE };
 
   OpAbstract *SourceOp;
   OpAbstract *DestinationOp;
@@ -55,11 +55,14 @@ public:
   int Distance;
 
   DependenceType type;
+  // Issue-order edges constrain start times rather than waiting for the
+  // source's entire transaction to complete.
+  int issueDelay = 0;
 
   Dependence(OpAbstract *SourceOp, OpAbstract *DestinationOp, int Distance,
-             DependenceType type)
+             DependenceType type, int issueDelay = 0)
       : SourceOp(SourceOp), DestinationOp(DestinationOp), Distance(Distance),
-        type(type) {}
+        type(type), issueDelay(issueDelay) {}
 };
 
 class OpAbstract {
@@ -411,7 +414,7 @@ public:
       : OpConcrete(op, ParentLoop, ParentBB, resource, R, O, type) {
     assert(llvm::isa<tor::LoadOp>(op) || llvm::isa<tor::StoreOp>(op) ||
            llvm::isa<tor::GuardedStoreOp>(op) || llvm::isa<aps::ReadSmem>(op) ||
-           llvm::isa<aps::WriteSmem>(op) || llvm::isa<mlir::memref::LoadOp>(op) ||
+           (llvm::isa<aps::WriteSmem, aps::WriteSmemIf>(op)) || llvm::isa<mlir::memref::LoadOp>(op) ||
            llvm::isa<mlir::memref::StoreOp>(op));
 
     if (auto loadOp = llvm::dyn_cast<tor::LoadOp>(op)) {
@@ -436,6 +439,12 @@ public:
         partitionIndices = apsLoadOp.getIndices().drop_front(1);
       }
     } else if (auto apsStoreOp = llvm::dyn_cast<aps::WriteSmem>(op)) {
+      memref = apsStoreOp.getMemref();
+      if (apsStoreOp.getIndices().size() > 0) {
+        addr = apsStoreOp.getIndices()[0]; // first index is the address
+        partitionIndices = apsStoreOp.getIndices().drop_front(1);
+      }
+    } else if (auto apsStoreOp = llvm::dyn_cast<aps::WriteSmemIf>(op)) {
       memref = apsStoreOp.getMemref();
       if (apsStoreOp.getIndices().size() > 0) {
         addr = apsStoreOp.getIndices()[0]; // first index is the address
