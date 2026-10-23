@@ -1,6 +1,7 @@
 """One-shot route 1 build: CADL with an embedded Allo kernel -> Chipyard-ready RTL.
 
-    <out>/hls/            HLS project and kernel interface manifest (allo_kernel)
+    <out>/hls/            HLS project and kernel interface manifest (allo_kernel), built
+                          in a separate Allo interpreter and cached (isolated.py)
     <out>/rtl/            HLS Verilog used by the wrapper (repaired Vitis output, or --rtl)
     <out>/main.sv         generated ISAX wrapper
     <out>/rtl.f, aps_config.yaml   file list and Chipyard APS config
@@ -19,9 +20,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..allo import check_source
-from ..allo_kernel.build import build_kernel
-from ..allo_kernel.hls import HLSProject
-from ..allo_kernel.schedule import load_schedule
+from ..allo_kernel.isolated import build_kernel_isolated
+from ..allo_kernel.project import HLSProject
+from ..allo_kernel.stage import hash_files
 from .main import generate_main
 from .spm import build_layout
 
@@ -41,10 +42,13 @@ class BuildResult:
     output: Path
     hls: HLSProject
     main_sv: Path | None  # None when synthesis was skipped and no RTL was given
+    cached: bool = False  # the kernel build was reused
 
 
 def build(cadl: Path, output: Path, *, rtl: Path | None = None, csynth: bool = True,
-          vitis_hls: str = "vitis_hls") -> BuildResult:
+          vitis_hls: str = "vitis_hls", allo_python: str | None = None,
+          cache: bool = True) -> BuildResult:
+    """`allo_python` runs the Allo code (default: $AQUAS_ALLO_PYTHON, else this interpreter)."""
     cadl, output = Path(cadl).resolve(), Path(output).resolve()
     proc = check_source(cadl.read_text(), str(cadl))
     if len(proc.allo_kernels) != 1:
@@ -55,11 +59,11 @@ def build(cadl: Path, output: Path, *, rtl: Path | None = None, csynth: bool = T
     hls_dir = output / "hls"
     hls_dir.mkdir(exist_ok=True)
 
-    built = build_kernel(load_schedule(kernel, hls_dir, cadl), hls_dir, rtl=rtl, csynth=csynth,
-                         vitis_hls=vitis_hls)
+    built = build_kernel_isolated(cadl, kernel, hls_dir, rtl=rtl, csynth=csynth,
+                                  vitis_hls=vitis_hls, python=allo_python, cache=cache)
     project = built.project
     if built.rtl_dir is None:
-        return BuildResult(output, project, None)
+        return BuildResult(output, project, None, built.cached)
 
     rtl_dir = output / "rtl"
     if rtl_dir.resolve() != built.rtl_dir:
@@ -92,7 +96,8 @@ def build(cadl: Path, output: Path, *, rtl: Path | None = None, csynth: bool = T
                  "dma_base": f"0x{layout.base(s.name):x}"} for s in layout.spms],
         "csrs": config.get("csrs", []),
         "rtl": built.manifest["rtl"],
+        "main_sv_sha256": hash_files([main_sv]),
         "interface": built.manifest,
     }
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    return BuildResult(output, project, main_sv)
+    return BuildResult(output, project, main_sv, built.cached)

@@ -4,6 +4,9 @@ Allo's `vivado_hls` target emits array arguments as C arrays and skips the
 `vitis_hls` post-processing that adds m_axi pragmas, so no AXI is generated.
 Interfaces are pinned with Tcl directives instead of editing the C++.
 
+The HLS C++ is kept twice: kernel.orig.cpp as Allo emits the schedule, and
+kernel.cpp after the float operations became blackbox calls (what Vitis runs).
+
 Allo turns return values into trailing output arguments (an array, or a
 pointer for a scalar), in Python return order. Its Vivado HLS emitter ignores
 the `outputs` naming attribute, so they keep Allo's value names (v1, ...),
@@ -15,7 +18,6 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from allo._mlir.dialects import func as func_d
@@ -24,21 +26,12 @@ from allo._mlir.ir import (F32Type, FlatSymbolRefAttr, FunctionType, InsertionPo
 
 from .blackbox import OPERATORS, build_blackboxes
 from .interface import KernelParam, Partition
+from .project import HLSProject
 from .rtl_fixups import fix_rtl
 
 FLOAT_LOWERING = {"arith.addf": "hf_add_f32", "arith.mulf": "hf_mul_f32"}
 FLOAT_ARITH = {"arith.addf", "arith.subf", "arith.mulf", "arith.divf", "arith.remf",
                "arith.negf", "math.fma"}
-
-
-@dataclass
-class HLSProject:
-    top: str
-    directory: Path
-    params: list[KernelParam]
-    float_calls: dict[str, int]
-    memory_latency: int  # read latency of every ap_memory port, in cycles
-    returns: list[KernelParam] = field(default_factory=list)  # in Python return order
 
 
 def _walk(op, pipelined: bool = False):
@@ -185,10 +178,12 @@ def _tcl(top: str, ports: list[KernelParam], blackboxes: list[Path], part: str,
 
 def emit_project(schedule, directory: Path, *, part: str = "xc7z020clg400-1",
                  clock_ns: float = 10, memory_latency: int = 1) -> HLSProject:
-    """Lower the schedule in place and write kernel.cpp, blackboxes and run.tcl."""
+    """Lower the schedule in place; write kernel.orig.cpp, kernel.cpp, blackboxes, run.tcl."""
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     ports = name_ports(schedule)
+    # Allo emits from a copy of the module, so this leaves the schedule as it is.
+    (directory / "kernel.orig.cpp").write_text(schedule.build(target="vivado_hls").hls_code)
     calls = lower_float_ops(schedule)
     blackboxes = build_blackboxes(directory / "blackbox", list(calls))
     code = schedule.build(target="vivado_hls").hls_code
