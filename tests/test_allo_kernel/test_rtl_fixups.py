@@ -1,4 +1,5 @@
-"""rtl_fixups drops Vitis' dangling blackbox ap_ready pins and rejects completion stalls."""
+"""rtl_fixups drops Vitis' dangling blackbox ap_ready pins and rejects completion stalls
+and RTL that instantiates modules it does not define (FPGA primitives, vendor IP)."""
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,7 @@ LOOP_ONLY = "((icmp_ln36_reg_193_pp0_iter2_reg == 1'd0) & (ap_enable_reg_pp0_ite
 def _fix(tmp_path, text):
     (tmp_path / "src").mkdir()
     (tmp_path / "src/systolic_PE_kernel_3_3.v").write_text(text)
+    (tmp_path / "src/hf_add_f32.v").write_text("module hf_add_f32_rtl();\nendmodule\n")
     return fix_rtl(tmp_path / "src", tmp_path / "out")
 
 
@@ -61,3 +63,12 @@ def test_completion_stall_is_rejected(tmp_path):
 def test_archived_manual_blackbox_shape_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="blackbox completion stall"):
         fix_rtl(ARCHIVED_RAW, tmp_path)
+
+
+@pytest.mark.parametrize("primitive", ["DSP48E1 #(.AREG(1)) dsp (.CLK(ap_clk));",
+                                       "(* keep *) RAMB18E1 ram(.CLKARDCLK(ap_clk));",
+                                       "xpm_memory_spram #(.ADDR_WIDTH_A(6)) mem (.clka(ap_clk));"])
+def test_fpga_primitive_is_rejected(tmp_path, primitive):
+    name = primitive.split("*)")[-1].split()[0]
+    with pytest.raises(ValueError, match=rf"{name} in systolic_PE_kernel_3_3.v"):
+        _fix(tmp_path, PE.replace("endmodule", f"{primitive}\nendmodule"))

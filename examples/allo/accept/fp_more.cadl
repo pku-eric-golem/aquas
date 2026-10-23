@@ -1,0 +1,121 @@
+// Route 1 acceptance kernel (HardFloat beyond add and mul), built by tools/allo-gen.
+// Subtraction, two comparisons, float <-> int conversions and negation, each a
+// HardFloat blackbox in a pipelined loop. SPM offsets and counts are elements;
+// _mem addresses are bytes.
+static fm_a: [f32; 64];
+static fm_b: [f32; 64];
+static fm_i: [i32; 64];
+static fm_u: [u32; 64];
+static fm_d: [f32; 64];
+static fm_c: [i32; 64];
+static fm_t: [i32; 64];
+static fm_f: [f32; 64];
+
+allo fp_more with s """
+import allo
+from allo.ir.types import float32, int32, uint32
+
+
+def fp_more(A: float32[16], B: float32[16], I: int32[16], U: uint32[16],
+            D: float32[16], C: int32[16], T: int32[16], F: float32[16]):
+    for i in range(16):
+        D[i] = A[i] - B[i]
+        c: int32 = 0
+        if A[i] < B[i]:
+            c = 1
+        if A[i] >= B[i]:
+            c = c + 2
+        C[i] = c
+        T[i] = int(A[i])
+        F[i] = float(I[i]) + float(U[i]) * (-B[i])
+
+
+s = allo.customize(fp_more)
+s.pipeline("i")
+""";
+
+// rs1: input tile, rs2: output tile; 16-element tiles of every SPM.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype fmore(rs1: u5, rs2: u5, rd: u5) {
+    let tin: u32 = _irf[rs1] & 32'h3;
+    let tout: u32 = _irf[rs2] & 32'h3;
+    invoke fp_more(A = fm_a[tin * 16 +: 16], B = fm_b[tin * 16 +: 16],
+                   I = fm_i[tin * 16 +: 16], U = fm_u[tin * 16 +: 16],
+                   D = fm_d[tout * 16 +: 16], C = fm_c[tout * 16 +: 16],
+                   T = fm_t[tout * 16 +: 16], F = fm_f[tout * 16 +: 16]);
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: SPM element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_a(rs1: u5, rs2: u5, rd: u5) {
+    let dram: u32 = _irf[rs1];
+    let spm: u32 = _irf[rs2];
+    fm_a[spm +: ] = _mem[dram +: 16];
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000001)]
+rtype load_b(rs1: u5, rs2: u5, rd: u5) {
+    let dram: u32 = _irf[rs1];
+    let spm: u32 = _irf[rs2];
+    fm_b[spm +: ] = _mem[dram +: 16];
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype load_i(rs1: u5, rs2: u5, rd: u5) {
+    let dram: u32 = _irf[rs1];
+    let spm: u32 = _irf[rs2];
+    fm_i[spm +: ] = _mem[dram +: 16];
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000011)]
+rtype load_u(rs1: u5, rs2: u5, rd: u5) {
+    let dram: u32 = _irf[rs1];
+    let spm: u32 = _irf[rs2];
+    fm_u[spm +: ] = _mem[dram +: 16];
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000100)]
+rtype store_d(rs1: u5, rs2: u5, rd: u5) {
+    let dram: u32 = _irf[rs1];
+    let spm: u32 = _irf[rs2];
+    _mem[dram +: 16] = fm_d[spm +: ];
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000101)]
+rtype store_c(rs1: u5, rs2: u5, rd: u5) {
+    let dram: u32 = _irf[rs1];
+    let spm: u32 = _irf[rs2];
+    _mem[dram +: 16] = fm_c[spm +: ];
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000110)]
+rtype store_t(rs1: u5, rs2: u5, rd: u5) {
+    let dram: u32 = _irf[rs1];
+    let spm: u32 = _irf[rs2];
+    _mem[dram +: 16] = fm_t[spm +: ];
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000111)]
+rtype store_f(rs1: u5, rs2: u5, rd: u5) {
+    let dram: u32 = _irf[rs1];
+    let spm: u32 = _irf[rs2];
+    _mem[dram +: 16] = fm_f[spm +: ];
+    _irf[rd] = 0;
+}

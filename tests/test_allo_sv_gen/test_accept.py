@@ -6,7 +6,8 @@ Each example in examples/allo/accept is synthesized, wrapped and simulated:
 DMA loads, two invokes on different tiles, DMA stores. The expected memory and
 rd values come from Allo's own LLVM build of the same embedded code (NumPy
 for relu_count, whose mixed return that build does not support). fp_ops pushes
-FP32 special values through the HardFloat blackboxes (5.D.2). banked binds
+FP32 special values through the HardFloat blackboxes (5.D.2), fp_more through
+the subtraction, comparison, conversion and negation ones. banked binds
 partitioned kernel arrays to banked SPMs (5.B, 5.C) and is invoked once,
 since its output SPM holds a single result.
 """
@@ -193,11 +194,24 @@ KEY_PAIRS = [(0x7F800000, 0xFF800000), (0x00000000, 0x7F800000), (0x80000000, 0x
 
 
 def _ieee(op, a: int, b: int) -> int:
-    """binary32 a+b or a*b, round to nearest even, NaNs as RISC-V's canonical NaN."""
+    """binary32 a+b, a-b or a*b, round to nearest even, NaNs as RISC-V's canonical NaN."""
     x, y = (np.array([v], np.uint32).view(np.float32)[0] for v in (a, b))
     with np.errstate(all="ignore"):
-        r = np.float32(x + y) if op == "add" else np.float32(x * y)
+        r = np.float32({"add": x + y, "sub": x - y, "mul": x * y}[op])
     return 0x7FC00000 if np.isnan(r) else int(np.array([r], np.float32).view(np.uint32)[0])
+
+
+def _float_bits(value: float) -> int:
+    return int(np.array([np.float32(value)], np.float32).view(np.uint32)[0])
+
+
+def _fcvt_w(a: int) -> int:
+    """RISC-V fcvt.w.s with truncation: saturating, NaN to the largest int32."""
+    x = float(np.array([a], np.uint32).view(np.float32)[0])
+    if x != x:
+        return 0x7FFFFFFF
+    value = max(min(int(x) if abs(x) != float("inf") else int(np.sign(x)) << 40, 2**31 - 1), -2**31)
+    return value & 0xFFFFFFFF
 
 
 def fp_ops(model, rng):
@@ -216,7 +230,37 @@ def fp_ops(model, rng):
     return s
 
 
-SCENARIOS = [vec_add, mat_scale, reduce_sum, prefix_sum, relu_count, fp_ops, banked]
+def fp_more(model, rng):
+    # Expected values from IEEE arithmetic and RISC-V conversion rules, in the
+    # kernel's evaluation order, as the HardFloat blackboxes compute them.
+    values = SPECIAL + [0x4EFFFFFF, 0xCF000001, 0x3FC00000, 0xC0200000]
+    ints = [0, 1, 0xFFFFFFFF, 0x7FFFFFFF, 0x80000000, 0x01000001, 0x00FFFFFF, 0xFEFFFFFF]
+    bits = lambda vs: np.array(vs, np.uint32).view(np.int32)  # noqa: E731
+    s = Scenario()
+    for call, (tin, tout) in enumerate(((0, 1), (3, 2))):
+        a = [values[int(i)] for i in rng.integers(0, len(values), 16)]
+        b = [values[int(i)] for i in rng.integers(0, len(values), 16)]
+        ia = [ints[int(i)] if i < len(ints) else int(rng.integers(0, 1 << 32)) for i in rng.integers(0, 12, 16)]
+        ua = [ints[int(i)] if i < len(ints) else int(rng.integers(0, 1 << 32)) for i in rng.integers(0, 12, 16)]
+        for funct, data in enumerate((a, b, ia, ua)):
+            s.load(f"load_{'abiu'[funct]}", funct, tin * 16, bits(data))
+        s.invoke("fmore", tin, tout)
+        x = np.array(a, np.uint32).view(np.float32)
+        y = np.array(b, np.uint32).view(np.float32)
+        with np.errstate(invalid="ignore"):
+            c = [int(p < q) + 2 * int(p >= q) for p, q in zip(x, y)]
+        neg_b = [v ^ 0x80000000 for v in b]
+        conv_i = [_float_bits(float(v - (v >> 31 << 32))) for v in ia]
+        conv_u = [_float_bits(float(v)) for v in ua]
+        f = [_ieee("add", ci, _ieee("mul", cu, nb)) for ci, cu, nb in zip(conv_i, conv_u, neg_b)]
+        s.store("store_d", 4, tout * 16, bits([_ieee("sub", p, q) for p, q in zip(a, b)]))
+        s.store("store_c", 5, tout * 16, np.array(c, np.int32))
+        s.store("store_t", 6, tout * 16, bits([_fcvt_w(v) for v in a]))
+        s.store("store_f", 7, tout * 16, bits(f))
+    return s
+
+
+SCENARIOS = [vec_add, mat_scale, reduce_sum, prefix_sum, relu_count, fp_ops, banked, fp_more]
 
 
 def _simulate(work: Path, out: Path, s: Scenario) -> tuple[str, np.ndarray]:

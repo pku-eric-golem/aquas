@@ -9,6 +9,11 @@ clear pipeline stalls: its blackboxes declared an extra `ap_ready` output, and
 Vitis then stalls the calling pipeline on a completion that never comes. Our
 blackboxes do not declare it, so that stall must not appear; a stall predicate
 with a term made only of loop-valid signals raises instead of being patched.
+
+The repaired RTL must be self-contained: every module it instantiates is
+defined in it (Vitis helper modules, the HardFloat blackboxes). An instance of
+anything else is an FPGA primitive or vendor IP (DSP48, RAMB, xpm_*, Xilinx
+floating point) and is rejected, as it has no meaning in the ASIC flow.
 """
 from __future__ import annotations
 
@@ -16,10 +21,18 @@ import re
 import shutil
 from pathlib import Path
 
-INSTANCE = re.compile(r"\bhf_(?:add|mul)_f32(?:_rtl)?\s+\w+\s*\([\s\S]*?\);")
+INSTANCE = re.compile(r"\bhf_\w+?_f32(?:_rtl)?\s+\w+\s*\([\s\S]*?\);")  # any blackbox.OPERATORS
 STALL = re.compile(r"\b(ap_block_pp0_stage\d+\w*)\s*=\s*([^;]+);")
 LOOP_SIGNAL = re.compile(r"\b(?:icmp_ln\d+_reg_\d+_pp0_iter\d+_reg|ap_enable_reg_pp0_iter\d+)\b")
 CONSTANT = re.compile(r"\d+'[db][01]|[()&|=~\s]")
+MODULE = re.compile(r"^\s*module\s+(\w+)", re.M)
+# `name #(...) instance (` or `name instance (` at the start of a statement.
+INSTANTIATION = re.compile(r"(?:^|;)\s*(?:\(\*[^*]*\*\)\s*)?([A-Za-z_]\w*)\s+(?:#\s*\(|[A-Za-z_]\w*\s*\()", re.M)
+KEYWORDS = {"input", "output", "inout", "wire", "reg", "assign", "always", "initial", "module",
+            "parameter", "localparam", "integer", "genvar", "generate", "if", "else", "for",
+            "case", "casez", "casex", "begin", "end", "function", "task", "return", "default",
+            "endmodule", "endcase", "endfunction", "endtask", "endgenerate", "logic", "signed",
+            "while", "repeat", "forever", "wait", "disable", "real", "time", "event"}
 
 
 def _drop_dangling_ready(source: str, file: str, record: list[dict]) -> str:
@@ -70,6 +83,22 @@ def _check_stalls(source: str, file: str) -> None:
                 raise ValueError(f"{file}: blackbox completion stall in {signal}: {expression}")
 
 
+def instantiated_modules(source: str) -> set[str]:
+    """Names of the modules instantiated in Verilog `source` (comments stripped)."""
+    text = re.sub(r"//[^\n]*|/\*.*?\*/", "", source, flags=re.S)
+    return {name for name in INSTANTIATION.findall(text) if name not in KEYWORDS}
+
+
+def check_self_contained(texts: dict[str, str]) -> None:
+    """Every instantiated module must be defined in one of `texts` (file -> source)."""
+    defined = {name for text in texts.values() for name in MODULE.findall(text)}
+    foreign = {f"{name} in {file}" for file, text in texts.items()
+               for name in instantiated_modules(text) - defined}
+    if foreign:
+        raise ValueError("HLS RTL instantiates modules it does not define (FPGA primitives or "
+                         f"vendor IP?): {', '.join(sorted(foreign))}")
+
+
 def fix_rtl(source_dir: Path, out_dir: Path) -> list[dict]:
     """Copy Vitis Verilog from `source_dir` to `out_dir`, repairing it; return the record."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -86,4 +115,5 @@ def fix_rtl(source_dir: Path, out_dir: Path) -> list[dict]:
             shutil.copyfile(path, out_dir / path.name)
         else:
             (out_dir / path.name).write_text(fixed)
+    check_self_contained({p.name: p.read_text() for p in sorted(out_dir.glob("*.v"))})
     return record
