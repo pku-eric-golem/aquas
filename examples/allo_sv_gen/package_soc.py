@@ -33,7 +33,7 @@ EXAMPLES = {
          "ALLO SYSTOLIC FAIL: batch=0 row=0 col=0", True),
     ]),
     "glue": (ROOT / "examples/allo/glue.cadl", HERE / "software", [
-        ("test_glue", "test_glue.c", "", "ALLO GLUE PASS checks=230", False),
+        ("test_glue", "test_glue.c", "", "ALLO GLUE PASS checks=235", False),
         ("test_glue_fail", "test_glue.c", "-DGLUE_FORCE_FAIL",
          "ALLO GLUE FAIL: status after reset got=00000000 want=00000001", True),
     ]),

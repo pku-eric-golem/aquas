@@ -1,6 +1,7 @@
 /* RV32 Rocket program for examples/allo/glue.cadl: single _mem accesses
- * through the HellaCache port, if, a persistent register, single SPM
- * elements around the Allo vec_add kernel, and the error ABI (a failed
+ * through the HellaCache port, if, a persistent register, a CSR register
+ * shared with the CPU, single SPM elements around the Allo vec_add kernel,
+ * and the error ABI (a failed
  * runtime check answers 0 and sets a sticky bit that 0x7b/0x7f returns and
  * clears). Single accesses share Rocket's data cache with the CPU, so they
  * run without fences; DMA transfers are fenced as in the other programs. */
@@ -23,6 +24,8 @@ ROCC_COMMAND(chase, 0x0b, 5)
 ROCC_COMMAND(clamp, 0x0b, 6)
 ROCC_COMMAND(elem_rd, 0x0b, 7)
 ROCC_COMMAND(elem_wr, 0x0b, 8)
+ROCC_COMMAND(scale, 0x0b, 9)
+ROCC_COMMAND(bump, 0x0b, 10)
 ROCC_COMMAND(load_b, 0x7b, 0)
 ROCC_COMMAND(store_c, 0x7b, 1)
 ROCC_COMMAND(error_status_rocc, 0x7b, 0x7f)
@@ -96,6 +99,25 @@ static int memory_glue(void) {
     EXPECT("clamp not taken", clamp(addr(&w[40]), 0), 0);
     EXPECT("clamp kept", w[40], 100);
     return guards("single access", &mem);
+}
+
+#define GLUE_GAIN 0x801
+static void write_gain(uint32_t v) { __asm__ volatile ("csrw %0, %1" :: "i"(GLUE_GAIN), "r"(v)); }
+static uint32_t read_gain(void) {
+    uint32_t v;
+    __asm__ volatile ("csrr %0, %1" : "=r"(v) : "i"(GLUE_GAIN));
+    return v;
+}
+
+static int csr_glue(void) {
+    EXPECT("csr reset", read_gain(), 0);
+    write_gain(3);
+    EXPECT("scale reads csrw", scale(7, 0), 21);
+    EXPECT("bump", bump(2, 0), 5);
+    EXPECT("csrr sees bump", read_gain(), 5);
+    write_gain(6);
+    EXPECT("scale after csrw", scale(2, 0), 12);
+    return 0;
 }
 
 static int32_t a_val(unsigned i) { return (int32_t)(i * 3u) - 20; }
@@ -186,7 +208,7 @@ int main(void) {
     printf("ALLO GLUE Rocket/RoCC: _mem single access, SPM elements, error ABI\n");
     for (unsigned i = 0; i < GUARD; ++i) mem.before[i] = mem.after[i] = DEAD;
     if (expect("status after reset", error_status(), 0)) return 1;
-    if (memory_glue() || spm_glue() || errors()) return 1;
+    if (memory_glue() || csr_glue() || spm_glue() || errors()) return 1;
     printf("ALLO GLUE PASS checks=%u\n", checks);
     return 0;
 }

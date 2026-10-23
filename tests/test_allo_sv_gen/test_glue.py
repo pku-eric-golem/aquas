@@ -189,12 +189,6 @@ def test_glue_simulation(tmp_path, banks):
     assert f"ROCC PASS cases={len(cases)}" in out, out
 
 
-def test_csr_register_rejected():
-    source = SOURCE.replace("_irf[rd] = last;", "_irf[rd] = gain;")
-    source = "#[csr_address(0x801)]\nregister gain: u32;\n" + source
-    with pytest.raises(NotImplementedError, match="CSR register gain"):
-        _main(source)
-
 
 def test_incomplete_partition_rejected():
     source = REDUCE.replace("static red_x", "#[partition_dim_array([0])]\nstatic red_x", 1)

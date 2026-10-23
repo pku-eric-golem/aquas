@@ -14,7 +14,7 @@ from .spm import build_layout, generate_spm, generate_spm_writes
 
 def generate_main(proc: ast.Proc, instance: HlsInstance,
                   ports: list[WrapperPort] | None = None) -> str:
-    ports = ports or load_ports()
+    ports = ports or load_ports(csrs=list(proc.csrs))
     layout = build_layout(proc)
     invoke, dma = InvokeBridge(instance, layout), DmaBridge(layout)
     fsm = build_fsm(proc, {"invoke": invoke.handle, "dma": dma.handle}, layout)

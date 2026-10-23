@@ -23,6 +23,13 @@ port takes it, then a response state; a read registers the response data.
 A write also waits for its response, so it has landed before the instruction
 answers. Fields follow the native flow: size 2, not signed, virtual address.
 
+A CSR register (`#[csr_address(...)] register r: u32;`) lives in Rocket as a
+custom CSR the CPU reads and writes with csrr/csrw. `_csr[r]` reads its current
+value (`csr_r_value_res0`); `_csr[r] = v` drives `csr_r_set_enable` and the
+set data on the edge, so Rocket holds v from the next cycle, and later
+statements on the same edge already see v. One write per CSR and cycle; a
+second waits. The CPU should not write the CSR while an instruction runs.
+
 Runtime checks (SPM indices and ranges, `_mem` alignment) run just before the
 access they guard. A failing check aborts the instruction: rd gets 0 and the
 cause is OR-ed into a sticky error register, which the reserved instruction
@@ -104,13 +111,23 @@ class Fsm:
         self.persistent: list[tuple[Var, int]] = []  # scalar statics and their reset values
         self.statics: dict[str, Var] = {}  # proc-level scalar statics
         self.spms: dict[str, Spm] = {}
-        self.csrs: set[str] = set()
+        self.csrs: dict[str, Var] = {}  # CSR name -> its value port, typed
         self.uses_mem = False  # any single _mem access
         self.spm_writes: dict[str, Spm] = {}  # SPMs with FSM element writes
+        self.comb: dict[str, int] = {}  # edge-port registers -> bits, 0 unless driven
+        self.comb_outputs: dict[str, str] = {}  # wrapper output -> edge-port register
 
     @staticmethod
     def write_port(spm: Spm) -> str:
         return f"{spm.signal}_fsm"
+
+    def csr_set(self, name: str) -> str:
+        """Edge-port register prefix of CSR `name`'s set port."""
+        if f"fsm_csr_{name}_set" not in self.comb:
+            self.comb |= {f"fsm_csr_{name}_set": 1, f"fsm_csr_{name}_sdata": 32}
+            self.comb_outputs |= {f"csr_{name}_set_enable": f"fsm_csr_{name}_set",
+                                  f"csr_{name}_set_{name}_sdata": f"fsm_csr_{name}_sdata"}
+        return f"fsm_csr_{name}"
 
     def writes(self) -> list[SpmWrite]:
         return [SpmWrite(name, "fsm", f"{self.write_port(spm)}_we", f"{self.write_port(spm)}_index",
@@ -220,7 +237,7 @@ class FlowBuilder:
             if e.name in self.scope:
                 return self.env.get(e.name, self.scope[e.name].reg)
             if e.name in self.fsm.csrs:
-                raise NotImplementedError(f"{self.flow.name}: CSR register {e.name}")
+                raise ValueError(f"{self.flow.name}: read CSR {e.name} as _csr[{e.name}]")
             if e.name in FIELDS and any(name == e.name for name, _ in self.flow.inputs):
                 return self._fire(f"{CMD}{e.name}")
             raise ValueError(f"{self.flow.name}: unknown name {e.name}")
@@ -229,6 +246,8 @@ class FlowBuilder:
             if index not in ("rs1", "rs2"):
                 raise ValueError(f"{self.flow.name}: _irf read must use rs1 or rs2")
             return self._fire(f"{CMD}{index}data")
+        if (csr := self._csr(e)) is not None:
+            return self.env.get(f"#csr{csr}", self.fsm.csrs[csr].cast(self.fsm.csrs[csr].reg))
         if self._spm(e) or self._cpu(e):
             if id(e) not in self.loaded:
                 raise NotImplementedError(f"{self.flow.name}: element read in {e} here")
@@ -243,6 +262,16 @@ class FlowBuilder:
             return (f"({self.expr(e.condition)} ? {self.expr(e.then_branch)}"
                     f" : {self.expr(e.else_branch)})")
         raise NotImplementedError(f"{self.flow.name}: expression {e}")
+
+    def _csr(self, e: ast.Expr) -> str | None:
+        """The CSR name of `_csr[name]`, if `e` is one."""
+        if not (isinstance(e, ast.IndexExpr) and isinstance(e.expr, ast.IdentExpr)
+                and e.expr.name == "_csr"):
+            return None
+        if len(e.indices) != 1 or not isinstance(e.indices[0], ast.IdentExpr) \
+                or e.indices[0].name not in self.fsm.csrs:
+            raise ValueError(f"{self.flow.name}: {e} is not a declared CSR register")
+        return e.indices[0].name
 
     def _spm(self, e: ast.Expr) -> Spm | None:
         """The SPM of an element access `spm[i]`, if `e` is one."""
@@ -311,6 +340,8 @@ class FlowBuilder:
             return 5 if e.name in FIELDS else None
         if _is_irf(e) or self._cpu(e):
             return 32
+        if (csr := self._csr(e)) is not None:
+            return self.fsm.csrs[csr].bits
         if (spm := self._spm(e)) is not None:
             return spm.elem_bits
         if isinstance(e, ast.BinaryExpr):
@@ -403,6 +434,8 @@ class FlowBuilder:
             return self._assign(s)
         if isinstance(s, ast.AssignStmt) and self._spm(s.lhs):
             return self._store(s)
+        if isinstance(s, ast.AssignStmt) and self._csr(s.lhs):
+            return self._csr_write(s)
         if isinstance(s, ast.AssignStmt) and self._cpu(s.lhs):
             self.load(s.lhs.indices[0], s.rhs)
             return self._request(s.lhs.indices[0], True, self.expr(s.rhs))
@@ -450,11 +483,26 @@ class FlowBuilder:
             self.wait("spm_write", "1'b1")  # one FSM write per SPM and cycle
         index = self.check_range(s.lhs.indices[0], 1, spm, "spm_index", f"{spm.name} index")
         port = self.fsm.write_port(spm)
-        self.fsm.spm_writes[spm.name] = spm
+        if spm.name not in self.fsm.spm_writes:
+            self.fsm.spm_writes[spm.name] = spm
+            self.fsm.comb |= {f"{port}_we": 1, f"{port}_index": _index_bits(spm),
+                              f"{port}_data": spm.elem_bits}
         self.port(f"{port}_we = 1'b1;")
         self.port(f"{port}_index = {_index_bits(spm)}'({index});")
         self.port(f"{port}_data = {spm.elem_bits}'({self.expr(s.rhs)});")
         self.written.add(spm.name)
+
+    def _csr_write(self, s: ast.AssignStmt) -> None:
+        name = self._csr(s.lhs)
+        self.load(s.rhs)
+        if f"csr:{name}" in self.written:
+            self.wait("csr_write", "1'b1")  # one set per CSR and cycle
+        value = self.fsm.csrs[name].cast(self.expr(s.rhs))
+        port = self.fsm.csr_set(name)
+        self.port(f"{port}_set = 1'b1;")
+        self.port(f"{port}_sdata = 32'({value});")
+        self.env[f"#csr{name}"] = value
+        self.written.add(f"csr:{name}")
 
     def _if(self, s: ast.IfStmt) -> None:
         self.load(s.condition)
@@ -507,7 +555,7 @@ class FlowBuilder:
         self.edge = rest
         self.scope = outer | {b.id: var for b, var in zip(s.bindings, loop_vars)}
         # Outer variables assigned on this edge keep their pending values.
-        self.env = {k: v for k, v in self.env.items() if k in outer or k.startswith("#load")}
+        self.env = {k: v for k, v in self.env.items() if k in outer or k.startswith(("#load", "#csr"))}
         self.env |= {b.id: value for b, value in zip(s.bindings, nexts)}
 
     def _fire(self, signal: str) -> str:
@@ -531,7 +579,13 @@ def build_fsm(proc: ast.Proc, handlers: dict[str, Handler],
               layout: SpmLayout | None = None) -> Fsm:
     fsm = Fsm()
     fsm.spms = {spm.name: spm for spm in layout.spms} if layout else {}
-    fsm.csrs = set(proc.registers)
+    for name, reg in proc.registers.items():
+        if not reg.is_csr or not isinstance(reg.ty, ast.DataType_Single):
+            raise NotImplementedError(f"register {name}: only scalar #[csr_address] registers")
+        bits, signed = _basic(reg.ty.basic_type)
+        if bits > 32:
+            raise ValueError(f"register {name}: {bits} bits, wider than the 32-bit CSRs")
+        fsm.csrs[name] = Var(f"csr_{name}_value_res0", bits, signed)
     for name, static in proc.statics.items():
         if not isinstance(static.ty, ast.DataType_Array):
             fsm.statics[name] = fsm.static(f"static_{name}", static)
@@ -589,15 +643,12 @@ def _edge_ports(edge: Edge, indent: str) -> list[str]:
 
 
 def _port_block(fsm: Fsm) -> list[str]:
-    """The combinational twin of the FSM for edge ports (SPM write ports)."""
-    if not fsm.spm_writes:
+    """The combinational twin of the FSM for edge ports (SPM and CSR write ports)."""
+    if not fsm.comb:
         return []
-    out, body = [], ["always @(*) begin"]
-    for spm in fsm.spm_writes.values():
-        port = fsm.write_port(spm)
-        out += [f"reg {port}_we;", f"reg [{_index_bits(spm) - 1}:0] {port}_index;",
-                f"reg [{spm.elem_bits - 1}:0] {port}_data;"]
-        body += [f"  {port}_we = 1'b0;", f"  {port}_index = 0;", f"  {port}_data = 0;"]
+    out = [f"reg {f'[{bits - 1}:0] ' if bits > 1 else ''}{reg};" for reg, bits in fsm.comb.items()]
+    out += [f"assign {port} = {reg};" for port, reg in fsm.comb_outputs.items()]
+    body = ["always @(*) begin"] + [f"  {reg} = 0;" for reg in fsm.comb]
     body += ["  if (!rst) case (state)",
              "    S_IDLE: if (command_fire) case ({%sopcode, %sfunct})" % (CMD, CMD)]
     for d in fsm.decode:

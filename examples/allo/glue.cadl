@@ -1,5 +1,5 @@
 // Route 1 glue on Rocket: single _mem accesses, if, persistent registers,
-// single SPM elements, runtime checks and the error ABI around an Allo
+// a CSR register, single SPM elements, runtime checks and the error ABI around an Allo
 // kernel (cadl-allo-integration.md 5.C). Run by
 // examples/allo_sv_gen/software/test_glue.c through package_soc.py --example glue.
 // SPM offsets and counts are elements; _mem addresses are bytes. A failed
@@ -9,6 +9,10 @@ static vec_a: [i32; 256];
 static vec_b: [i32; 256];
 static vec_c: [i32; 256];
 static total: u32 = 0;
+
+// Rocket custom CSR 0x801: the CPU reads and writes it with csrr/csrw.
+#[csr_address(0x801)]
+register glue_gain: u32;
 
 allo vec_add with s """
 import allo
@@ -127,4 +131,18 @@ rtype store_c(rs1: u5, rs2: u5, rd: u5) {
     let spm_base: u32 = _irf[rs2];
     _mem[dram_base +: 16] = vec_c[spm_base +: ];
     _irf[rd] = 1;
+}
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0001001)]
+rtype scale(rs1: u5, rs2: u5, rd: u5) {
+    _irf[rd] = _irf[rs1] * _csr[glue_gain];
+}
+
+// Adds rs1 to the CSR; returns the new value.
+#[opcode(7'b0001011)]
+#[funct7(7'b0001010)]
+rtype bump(rs1: u5, rs2: u5, rd: u5) {
+    _csr[glue_gain] = _csr[glue_gain] + _irf[rs1];
+    _irf[rd] = _csr[glue_gain];
 }

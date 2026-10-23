@@ -5,8 +5,8 @@
     <out>/main.sv         generated ISAX wrapper
     <out>/rtl.f, aps_config.yaml   file list and Chipyard APS config
     <out>/encoding.json   instruction encodings (tools/aps-frontend encoding)
-    <out>/manifest.json   kernel ports, float lowering, SPM layout, RTL provenance,
-                          and the kernel interface manifest under "interface"
+    <out>/manifest.json   kernel ports, float lowering, SPM layout and banks, CSRs,
+                          RTL provenance, and the kernel interface manifest under "interface"
 """
 from __future__ import annotations
 
@@ -26,6 +26,14 @@ from .main import generate_main
 from .spm import build_layout
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _csr_config(name: str, reg) -> dict:
+    """The Chipyard APS entry of a CADL CSR register: Rocket custom CSR `id`, reset 0."""
+    if reg.address is None:
+        raise ValueError(f"register {name}: #[csr_address(...)] must be an integer literal")
+    bits = reg.ty.basic_type.width
+    return {"id": reg.address, "name": name, "mask": f"0x{(1 << bits) - 1:x}", "init": 0}
 
 
 @dataclass
@@ -65,6 +73,8 @@ def build(cadl: Path, output: Path, *, rtl: Path | None = None, csynth: bool = T
     (output / "rtl.f").write_text("\n".join(map(str, files)) + "\n")
     config = dict(backend="rocc", arch="rv32", core_count=1, top_module="aps_rocc_wrapper",
                   name="aps_rocc_module", vsrc=list(map(str, files)), maxBurstBytes=128, nXacts=2)
+    if proc.csrs:  # Rocket custom CSRs, in the order of main's CSR port groups
+        config["csrs"] = [_csr_config(name, reg) for name, reg in proc.csrs.items()]
     (output / "aps_config.yaml").write_text(json.dumps(config, indent=2) + "\n")
     env = dict(os.environ, PYTHONPATH=os.pathsep.join(
         filter(None, [str(ROOT), os.environ.get("PYTHONPATH")])))
@@ -78,7 +88,9 @@ def build(cadl: Path, output: Path, *, rtl: Path | None = None, csynth: bool = T
         "params": [{"name": p.name, "interface": p.kind} for p in project.params],
         "float_calls": project.float_calls,
         "spm": [{"name": s.name, "elements": s.elements, "elem_bits": s.elem_bits,
+                 "banks": s.banks, "bank_kind": "cyclic" if s.cyclic else "block",
                  "dma_base": f"0x{layout.base(s.name):x}"} for s in layout.spms],
+        "csrs": config.get("csrs", []),
         "rtl": built.manifest["rtl"],
         "interface": built.manifest,
     }

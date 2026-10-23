@@ -1,7 +1,8 @@
 """The `main` module ports expected by Chipyard's APS RoCC wrapper.
 
 The port list is read from ApsWrapper.scala so it cannot drift from the
-wrapper that instantiates `main`.
+wrapper that instantiates `main`, including the group of ports it adds for
+each custom CSR (`csr_<name>_value_res0`, `csr_<name>_set_enable`, ...).
 """
 from __future__ import annotations
 
@@ -20,14 +21,28 @@ class WrapperPort:
     bits: int | None  # None for a 1-bit Bool/Clock
 
 
-def load_ports(scala: Path = APS_WRAPPER) -> list[WrapperPort]:
+CSR_WIDTH = 32  # xLen of the rv32 Rocket the wrapper runs on
+
+
+def load_ports(scala: Path = APS_WRAPPER, csrs: list[str] = ()) -> list[WrapperPort]:
+    """The fixed ports, then one CSR port group per name in `csrs`, in order."""
     text = scala.read_text()
     fields = text[text.index("private def fields:"):text.index(") ++ csrNames")]
     found = re.findall(r'"(\w+)" -> (Input|Output)\((Clock|Bool|UInt)\((?:(\d+)\.W)?\)\)', fields)
     if not found:
         raise ValueError(f"no ports parsed from {scala}")
-    return [WrapperPort(name, direction.lower(), int(bits) if bits else None)
-            for name, direction, _, bits in found]
+    ports = [WrapperPort(name, direction.lower(), int(bits) if bits else None)
+             for name, direction, _, bits in found]
+    start = text.index(") ++ csrNames")
+    group = text[start:text.index("fields.foreach", start)]
+    template = re.findall(r's"([\w${}]+)" -> (Input|Output)\((Bool|UInt)\((csrWidth\.W)?\)\)', group)
+    if csrs and not template:
+        raise ValueError(f"no CSR ports parsed from {scala}")
+    for csr in csrs:
+        ports += [WrapperPort(name.replace("${prefix}", f"csr_{csr}").replace("${name}", csr),
+                              direction.lower(), CSR_WIDTH if width else None)
+                  for name, direction, _, width in template]
+    return ports
 
 
 def width_of(ports: list[WrapperPort], name: str) -> int:
