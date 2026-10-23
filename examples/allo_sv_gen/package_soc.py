@@ -1,6 +1,6 @@
 """Stage a Chipyard APSRocketConfig run of an ISAX built by tools/allo-gen.
 
-    python examples/allo_sv_gen/package_soc.py [--example gemm|systolic] [--rtl DIR] [--output build/<name>]
+    python examples/allo_sv_gen/package_soc.py [--example gemm|systolic|glue] [--rtl DIR] [--output build/<name>]
     pixi run bash build/<name>/run_soc.sh
 
 Each example names its .cadl and the RV32 programs run on Rocket, with the
@@ -31,6 +31,11 @@ EXAMPLES = {
         ("test_systolic", "test_systolic.c", "", "ALLO SYSTOLIC PASS batches=2 elements=128", False),
         ("test_systolic_fail", "test_systolic.c", "-DSYSTOLIC_FORCE_FAIL",
          "ALLO SYSTOLIC FAIL: batch=0 row=0 col=0", True),
+    ]),
+    "glue": (ROOT / "examples/allo/glue.cadl", HERE / "software", [
+        ("test_glue", "test_glue.c", "", "ALLO GLUE PASS checks=230", False),
+        ("test_glue_fail", "test_glue.c", "-DGLUE_FORCE_FAIL",
+         "ALLO GLUE FAIL: status after reset got=00000000 want=00000001", True),
     ]),
 }
 

@@ -1,0 +1,130 @@
+// Route 1 glue on Rocket: single _mem accesses, if, persistent registers,
+// single SPM elements, runtime checks and the error ABI around an Allo
+// kernel (cadl-allo-integration.md 5.C). Run by
+// examples/allo_sv_gen/software/test_glue.c through package_soc.py --example glue.
+// SPM offsets and counts are elements; _mem addresses are bytes. A failed
+// check answers rd = 0 and sets a bit in the error register, which opcode
+// 7'b1111011 funct7 7'b1111111 returns and clears.
+static vec_a: [i32; 256];
+static vec_b: [i32; 256];
+static vec_c: [i32; 256];
+static total: u32 = 0;
+
+allo vec_add with s """
+import allo
+from allo.ir.types import int32
+
+
+def vec_add(A: int32[16], B: int32[16], C: int32[16]):
+    for i in range(16):
+        C[i] = A[i] + B[i]
+
+
+s = allo.customize(vec_add)
+""";
+
+// rs1: (A offset << 16) | B offset. rs2: C offset. Offsets are unchecked
+// here, so a range past the end of an SPM is a runtime error.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype vadd(rs1: u5, rs2: u5, rd: u5) {
+    let r1: u32 = _irf[rs1];
+    let a: u32 = r1 >> 16;
+    let b: u32 = r1 & 32'hFFFF;
+    let c: u32 = _irf[rs2];
+    invoke vec_add(A = vec_a[a +: 16], B = vec_b[b +: 16], C = vec_c[c +: 16]);
+    _irf[rd] = 1;
+}
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000001)]
+rtype ld(rs1: u5, rs2: u5, rd: u5) {
+    _irf[rd] = _mem[_irf[rs1]];
+}
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000010)]
+rtype st(rs1: u5, rs2: u5, rd: u5) {
+    let a: u32 = _irf[rs1];
+    let v: u32 = _irf[rs2];
+    _mem[a] = v;
+    _irf[rd] = 1;
+}
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000011)]
+rtype add2(rs1: u5, rs2: u5, rd: u5) {
+    let a: u32 = _irf[rs1];
+    _irf[rd] = _mem[a] + _mem[a + 4];
+}
+
+// Doubles 4 words from rs1 to rs2; returns the running count of copied words.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000100)]
+rtype copy2x(rs1: u5, rs2: u5, rd: u5) {
+    let src: u32 = _irf[rs1];
+    let dst: u32 = _irf[rs2];
+    with
+        k: u32 = (0, k_next)
+    do {
+        _mem[dst + k * 4] = _mem[src + k * 4] * 2;
+        let k_next: u32 = k + 1;
+    } while (k_next < 4);
+    total = total + 4;
+    _irf[rd] = total;
+}
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000101)]
+rtype chase(rs1: u5, rs2: u5, rd: u5) {
+    let p: u32 = _irf[rs1];
+    _irf[rd] = _mem[_mem[p]];
+}
+
+// Clamps the word at rs1 to 100; returns whether it changed.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000110)]
+rtype clamp(rs1: u5, rs2: u5, rd: u5) {
+    let a: u32 = _irf[rs1];
+    if _mem[a] > 100 {
+        _mem[a] = 100;
+        _irf[rd] = 1;
+    } else {
+        _irf[rd] = 0;
+    }
+}
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000111)]
+rtype elem_rd(rs1: u5, rs2: u5, rd: u5) {
+    _irf[rd] = vec_c[_irf[rs1]];
+}
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0001000)]
+rtype elem_wr(rs1: u5, rs2: u5, rd: u5) {
+    let i: u32 = _irf[rs1];
+    let v: u32 = _irf[rs2];
+    vec_a[i] = v;
+    _irf[rd] = 1;
+}
+
+// rs1: DRAM byte address. rs2: vec_b element offset, unchecked. 16 elements.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_b(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    vec_b[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 1;
+}
+
+// rs1: DRAM byte address. rs2: vec_c element offset, unchecked. 16 elements.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000001)]
+rtype store_c(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    _mem[dram_base +: 16] = vec_c[spm_base +: ];
+    _irf[rd] = 1;
+}
