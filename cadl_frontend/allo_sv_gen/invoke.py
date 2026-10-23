@@ -114,11 +114,11 @@ class InvokeBridge:
                 != (spm.elem_bits, spm.is_float):
             raise ValueError(f"{b.flow.name}: {what} is {param.dtype}, {spm.name} holds "
                              f"{spm.elem_bits}-bit {'float' if spm.is_float else 'integer'}s")
-        b.check_range(value.start, count, spm, "invoke_range", what)
+        index = b.check_range(value.start, count, spm, "invoke_range", what)
         if self.spm_of.setdefault(param.name, spm.name) != spm.name:
             raise NotImplementedError(
                 f"{param.name} is bound to both {self.spm_of[param.name]} and {spm.name}")
-        b.action(f"{self.base(param.name)} <= {self.index_bits}'({b.expr(value.start)});")
+        b.action(f"{self.base(param.name)} <= {self.index_bits}'({index});")
 
     def declarations(self) -> str:
         lines = [f"reg [{self.index_bits - 1}:0] {self.base(p)};" for p in sorted(self.arrays)]

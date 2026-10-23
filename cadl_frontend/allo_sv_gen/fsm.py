@@ -250,14 +250,61 @@ class FlowBuilder:
         self._goto(Branch(cond, bad, ok))
         self.edge = ok
 
-    def check_range(self, start: ast.Expr, count: int, spm: Spm, cause: str, what: str) -> None:
-        """Elements [start, start + count) must lie in `spm`: at build time if constant."""
+    def check_range(self, start: ast.Expr, count: int, spm: Spm, cause: str, what: str) -> str:
+        """Elements [start, start + count) must lie in `spm`: at build time if constant.
+
+        Returns the index to use, evaluated as checked: wide enough that the
+        address arithmetic cannot wrap (see `index_bits`), so an overflowing
+        index fails the check instead of aliasing a small one.
+        """
         first = constant_integer(start)
-        if first is None:
-            self.check(f"(33'({self.expr(start)}) + 33'd{count}) > 33'd{spm.elements}", cause)
-        elif first < 0 or first + count > spm.elements:
-            raise ValueError(f"{self.flow.name}: {what} [{first}, {first + count}) "
-                             f"outside {spm.name}'s {spm.elements} elements")
+        if first is not None:
+            if first < 0 or first + count > spm.elements:
+                raise ValueError(f"{self.flow.name}: {what} [{first}, {first + count}) "
+                                 f"outside {spm.name}'s {spm.elements} elements")
+            return self.expr(start)
+        bits = self.index_bits(start) or 32
+        index = f"{bits}'({self.expr(start)})"
+        self.check(f"({bits + 1}'({index}) + {bits + 1}'d{count}) > {bits + 1}'d{spm.elements}", cause)
+        return index
+
+    # Result bits of an operator on l- and r-bit operands; the others never grow.
+    _GROW = {ast.BinaryOp.ADD: lambda l, r: max(l, r) + 1, ast.BinaryOp.SUB: lambda l, r: max(l, r) + 1,
+             ast.BinaryOp.MUL: lambda l, r: l + r}
+    _KEEP = {ast.BinaryOp.DIV, ast.BinaryOp.REM, ast.BinaryOp.BIT_AND, ast.BinaryOp.BIT_OR,
+             ast.BinaryOp.BIT_XOR, ast.BinaryOp.RSHIFT}
+
+    def index_bits(self, e: ast.Expr) -> int | None:
+        """Bits that hold every intermediate of unsigned index arithmetic `e` exactly.
+
+        Evaluated at this width, + - * << & | ^ / % >> on the operands cannot
+        wrap, and a negative result (from -) lands above any SPM size. None for
+        other operators, whose value depends on the evaluation width; the
+        caller then evaluates at 32 bits, as the instruction's registers.
+        """
+        if isinstance(e, ast.LitExpr):
+            value = constant_integer(e)
+            return None if value is None or value < 0 else max(1, value.bit_length())
+        if isinstance(e, ast.IdentExpr):
+            if e.name in self.scope:
+                return self.scope[e.name].bits
+            return 5 if e.name in FIELDS else None
+        if _is_irf(e) or self._cpu(e):
+            return 32
+        if (spm := self._spm(e)) is not None:
+            return spm.elem_bits
+        if isinstance(e, ast.BinaryExpr):
+            left = self.index_bits(e.left)
+            if e.op is ast.BinaryOp.LSHIFT:
+                shift = constant_integer(e.right)
+                return None if left is None or shift is None or shift < 0 else left + shift
+            right = self.index_bits(e.right)
+            if left is None or right is None:
+                return None
+            if e.op in self._GROW:
+                return self._GROW[e.op](left, right)
+            return max(left, right) if e.op in self._KEEP else None
+        return None
 
     def _request(self, addr: ast.Expr, write: bool, data: str = "32'd0") -> None:
         """One HellaCache access: wait until the port takes it, then for the response."""
@@ -283,9 +330,9 @@ class FlowBuilder:
             if spm is not None:
                 self.load(e.indices[0])
                 if id(e) not in self.loaded:
-                    self.check_range(e.indices[0], 1, spm, "spm_index", f"{spm.name} index")
+                    index = self.check_range(e.indices[0], 1, spm, "spm_index", f"{spm.name} index")
                     var = self.declare(f"spm_read{len(self.loaded)}", spm.elem_bits, spm.signed)
-                    self.action(f"{var.reg} <= {spm.signal}[{self.expr(e.indices[0])}];")
+                    self.action(f"{var.reg} <= {spm.signal}[{index}];")
                     self.wait("spm_read", "1'b1")
                     self.loaded[id(e)] = var.reg
                 continue
@@ -379,8 +426,8 @@ class FlowBuilder:
     def _store(self, s: ast.AssignStmt) -> None:
         spm = self._spm(s.lhs)
         self.load(s.lhs.indices[0], s.rhs)
-        self.check_range(s.lhs.indices[0], 1, spm, "spm_index", f"{spm.name} index")
-        self.action(f"{spm.signal}[{self.expr(s.lhs.indices[0])}] <= "
+        index = self.check_range(s.lhs.indices[0], 1, spm, "spm_index", f"{spm.name} index")
+        self.action(f"{spm.signal}[{index}] <= "
                     f"{spm.elem_bits}'({self.expr(s.rhs)});")
 
     def _if(self, s: ast.IfStmt) -> None:

@@ -73,11 +73,11 @@ class DmaBridge:
             span = (nbytes - 1) // stride_x * stride_x * stride_y + (nbytes - 1) % stride_x + 1
         else:
             span = nbytes
-        b.check_range(spm.start, -(-span // self.layout.elem_bytes), self.layout[spm.expr.name],
+        index = b.check_range(spm.start, -(-span // self.layout.elem_bytes), self.layout[spm.expr.name],
                       "dma_range", "DMA range")
         base = self.layout.base(spm.expr.name)
         b.action(f"dma_cpu_addr <= 32'({b.expr(mem.start)});")
-        b.action(f"dma_isax_addr <= 32'(32'h{base:x} + ({b.expr(spm.start)}) * "
+        b.action(f"dma_isax_addr <= 32'(32'h{base:x} + ({index}) * "
                  f"32'd{self.layout.elem_bytes});")
         b.action(f"dma_length <= 4'd{int(math.log2(nbytes))};")
         b.action(f"dma_stride_x <= 8'd{stride_x};")

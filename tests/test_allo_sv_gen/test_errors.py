@@ -58,6 +58,12 @@ rtype dma(rs1: u5, rs2: u5, rd: u5) {
     matA[dst +: ] = _mem[src +: 32];
     _irf[rd] = 1;
 }
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000101)]
+rtype row_rd(rs1: u5, rs2: u5, rd: u5) {
+    _irf[rd] = matA[_irf[rs1] * 16];
+}
 """
 
 OP, STATUS = 0x0b, (0x7b, 0x7f)
@@ -73,6 +79,9 @@ SEQUENCE = [  # (opcode, funct7, rs1, rs2, rd)
     (OP, 4, 0x100, SPM - 16, 0), (*STATUS, 0, 0, E["dma_range"]),
     (OP, 0, 1 << 20, 0, 0), (OP, 2, 0x101, 0, 0), (*STATUS, 0, 0, E["spm_index"] | E["mem_align"]),
     (OP, 0, 5, 0, 0x40490FDB),  # state survives the aborted instructions
+    # The index arithmetic must not wrap: 2**29 * 16 is 2**33, not element 0.
+    (OP, 1, 0, 0x3F800000, 1), (OP, 5, 1 << 29, 0, 0), (OP, 5, 1 << 28, 0, 0),
+    (*STATUS, 0, 0, E["spm_index"]), (OP, 5, 0, 0, 0x3F800000),
 ]
 EDITS = [
     ("  task automatic issue(input [6:0] f,", "  task automatic issue(input [6:0] op, input [6:0] f,"),
