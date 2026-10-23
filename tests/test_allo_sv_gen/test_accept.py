@@ -5,7 +5,8 @@ kernel invoked more than once and none relying on GEMM parameter names.
 Each example in examples/allo/accept is synthesized, wrapped and simulated:
 DMA loads, two invokes on different tiles, DMA stores. The expected memory and
 rd values come from Allo's own LLVM build of the same embedded code (NumPy
-for relu_count, whose mixed return that build does not support).
+for relu_count, whose mixed return that build does not support). fp_ops pushes
+FP32 special values through the HardFloat blackboxes (5.D.2).
 """
 import os
 import re
@@ -163,7 +164,44 @@ def relu_count(model, rng):
     return s
 
 
-SCENARIOS = [vec_add, mat_scale, reduce_sum, prefix_sum, relu_count]
+SPECIAL = [0x00000000, 0x80000000, 0x3F800000, 0xBF800000, 0x7F800000, 0xFF800000,
+           0x7FC00001, 0x7F800001, 0xFFC00000, 0x00000001, 0x807FFFFF, 0x00800000,
+           0x7F7FFFFF, 0xFF7FFFFF, 0x3F000000, 0x3FC00000, 0x00C00000, 0x7F000000,
+           0x33800000, 0x4B800000]
+# inf - inf, 0 * inf, signed zeros, NaN kinds, subnormals, underflow, overflow, ties to even.
+KEY_PAIRS = [(0x7F800000, 0xFF800000), (0x00000000, 0x7F800000), (0x80000000, 0x80000000),
+             (0x00000000, 0x80000000), (0x7F800001, 0x3F800000), (0x3F800000, 0x7FC00001),
+             (0xFFC00000, 0xFF800000), (0x7F7FFFFF, 0x7F7FFFFF), (0x00000001, 0x3F000000),
+             (0x00000001, 0xBF800000), (0x807FFFFF, 0x00800000), (0x00C00000, 0x3F000000),
+             (0x3FC00000, 0x7F000000), (0xFF7FFFFF, 0xFF7FFFFF), (0x33800000, 0x3F800000),
+             (0x4B800000, 0x3F800000)]
+
+
+def _ieee(op, a: int, b: int) -> int:
+    """binary32 a+b or a*b, round to nearest even, NaNs as RISC-V's canonical NaN."""
+    x, y = (np.array([v], np.uint32).view(np.float32)[0] for v in (a, b))
+    with np.errstate(all="ignore"):
+        r = np.float32(x + y) if op == "add" else np.float32(x * y)
+    return 0x7FC00000 if np.isnan(r) else int(np.array([r], np.float32).view(np.uint32)[0])
+
+
+def fp_ops(model, rng):
+    # The HardFloat blackboxes, not the host FPU behind Allo's LLVM model, set the
+    # NaN encoding, so the expected values come from _ieee.
+    pairs = KEY_PAIRS + [(SPECIAL[i], SPECIAL[j]) for i, j in rng.integers(0, len(SPECIAL), (48, 2))]
+    s = Scenario()
+    for call, (a, b, sum_, prod) in enumerate(((0, 1, 2, 3), (5, 6, 7, 8), (10, 11, 12, 9), (15, 14, 13, 4))):
+        chunk = pairs[call * 16:call * 16 + 16]
+        bits = lambda vs: np.array(vs, np.uint32).view(np.int32)  # noqa: E731
+        s.load("load_a", 0, a * 16, bits([x for x, _ in chunk]))
+        s.load("load_b", 1, b * 16, bits([y for _, y in chunk]))
+        s.invoke("fops", (a << 16) | b, (sum_ << 16) | prod)
+        s.store("store_s", 2, sum_ * 16, bits([_ieee("add", x, y) for x, y in chunk]))
+        s.store("store_p", 3, prod * 16, bits([_ieee("mul", x, y) for x, y in chunk]))
+    return s
+
+
+SCENARIOS = [vec_add, mat_scale, reduce_sum, prefix_sum, relu_count, fp_ops]
 
 
 def _simulate(work: Path, out: Path, s: Scenario) -> tuple[str, np.ndarray]:

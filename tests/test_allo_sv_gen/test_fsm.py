@@ -95,7 +95,8 @@ CASES = [  # opcode, funct7, rs1data, rs2data, expected
     (0x0b, 2, 1, 3, accum(1, 3)),
     (0x7b, 3, 5, 0, tri(5, 0)),
     (0x7b, 3, 1, 0, tri(1, 0)),
-    (0x7b, 0x7f, 0, 0, 1),  # unknown instruction
+    (0x7b, 0x7e, 0, 0, 1),  # unknown instruction
+    (0x7b, 0x7f, 0, 0, 0),  # error status: nothing has failed
     (0x0b, 2, 3, 0x10000, accum(3, 0x10000)),
 ]
 

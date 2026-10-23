@@ -17,7 +17,7 @@ def generate_main(proc: ast.Proc, instance: HlsInstance,
     ports = ports or load_ports()
     layout = build_layout(proc)
     invoke, dma = InvokeBridge(instance, layout), DmaBridge(layout)
-    fsm = build_fsm(proc, {"invoke": invoke.handle, "dma": dma.handle})
+    fsm = build_fsm(proc, {"invoke": invoke.handle, "dma": dma.handle}, layout)
     # Declarations come before the FSM and bridges that use them.
     body = (generate_spm(layout) + generate_hls_instance(instance) + invoke.declarations()
             + dma.declarations() + generate_fsm(fsm, {p.name for p in ports})

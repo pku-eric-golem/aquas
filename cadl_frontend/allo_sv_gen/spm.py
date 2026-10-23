@@ -19,6 +19,8 @@ class Spm:
     elements: int
     elem_bits: int
     is_float: bool = False
+    signed: bool = False
+    partitioned: bool = False  # carries #[partition_*] attributes
 
     @property
     def signal(self) -> str:
@@ -64,13 +66,15 @@ def _bits(ty: ast.BasicType) -> int:
 
 
 def build_layout(proc: ast.Proc) -> SpmLayout:
-    arrays = [(name, s.ty) for name, s in proc.statics.items()
+    arrays = [(name, s.ty, s.attrs) for name, s in proc.statics.items()
               if isinstance(s.ty, ast.DataType_Array)]
     if not arrays:
         raise ValueError("proc declares no static arrays")
     spms = [Spm(name, index, math.prod(ty.dimensions), _bits(ty.element_type),
-                isinstance(ty.element_type, _FLOATS))
-            for index, (name, ty) in enumerate(arrays)]
+                isinstance(ty.element_type, _FLOATS),
+                isinstance(ty.element_type, ast.BasicType_ApFixed),
+                any(key.startswith("partition") for key in attrs))
+            for index, (name, ty, attrs) in enumerate(arrays)]
     if {spm.elem_bits for spm in spms} != {32}:
         # Burst lanes are carved from the beat in element-sized slices.
         raise NotImplementedError("only 32-bit SPM elements are supported")

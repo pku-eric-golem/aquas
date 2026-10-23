@@ -68,6 +68,13 @@ class DmaBridge:
             raise ValueError(f"{where}: stride_x must be a multiple of {self.beat} below 256 "
                              f"and stride_y below 256")
 
+        # SPM elements the transfer touches: rows of stride_x bytes, stride_x * stride_y apart.
+        if stride_x:
+            span = (nbytes - 1) // stride_x * stride_x * stride_y + (nbytes - 1) % stride_x + 1
+        else:
+            span = nbytes
+        b.check_range(spm.start, -(-span // self.layout.elem_bytes), self.layout[spm.expr.name],
+                      "dma_range", "DMA range")
         base = self.layout.base(spm.expr.name)
         b.action(f"dma_cpu_addr <= 32'({b.expr(mem.start)});")
         b.action(f"dma_isax_addr <= 32'(32'h{base:x} + ({b.expr(spm.start)}) * "

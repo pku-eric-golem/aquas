@@ -1,10 +1,12 @@
 """Subtask C: `invoke` -> ap_ctrl_hs handshake and SPM <-> ap_memory bridges.
 
 An invoke latches each array binding's element offset into `hls_<param>_base`
-and each scalar binding into `hls_<param>`, pulses ap_start for one cycle
-(the core samples it while idle), then waits for ap_done. Memory ports read
-`spm[base + address]` with one cycle of latency and write only while the
-core runs, as in the manual adapter.
+and each scalar binding into `hls_<param>`, then holds ap_start until the core
+raises ap_ready (ap_ctrl_hs; a loop pipelined in the top function only issues
+iterations while ap_start is high), then waits for ap_done unless it came with
+ap_ready, as from a sequential core.
+Memory ports read `spm[base + address]` with one cycle of latency and write
+only while the invoke runs (both states).
 
 Results bind in Python return order: an array result is an SPM range, like
 an array argument; a scalar result is captured from its ap_vld strobe and
@@ -79,9 +81,11 @@ class InvokeBridge:
                     raise ValueError(f"{b.flow.name}: {result.name} is {var.bits} bits, "
                                      f"{what} is {ret.bits}")
                 scalars.append((result.name, var, ret.name))
-        start = b.wait("invoke_start", "1'b1")
-        b.drive(self.instance.signal("ap_start"), start)
-        run = b.wait("invoke_run", self.instance.signal("ap_done"))
+        sig = self.instance.signal
+        start = b.wait("invoke_start", sig("ap_ready"))
+        b.drive(sig("ap_start"), start)
+        b.drive("hls_running", start)
+        run = b.wait_unless("invoke_run", sig("ap_done"))
         b.drive("hls_running", run)
         # The strobe may fire on the ap_done cycle, before the capture register has it.
         for name, var, port in scalars:
@@ -98,6 +102,10 @@ class InvokeBridge:
                 and value.expr.name in {s.name for s in self.layout.spms}):
             raise ValueError(f"{b.flow.name}: {what} must bind an SPM range")
         spm = self.layout[value.expr.name]
+        if spm.partitioned:
+            # The SPM is one flat array; banks matching Allo partitions are not mapped.
+            raise NotImplementedError(f"{b.flow.name}: {spm.name} is partitioned; "
+                                      "invoke binds only unpartitioned SPMs")
         count = constant_integer(value.length)
         if param.shape and count != math.prod(param.shape):
             raise ValueError(f"{b.flow.name}: {what} binds {count} elements of {spm.name}, "
@@ -106,6 +114,7 @@ class InvokeBridge:
                 != (spm.elem_bits, spm.is_float):
             raise ValueError(f"{b.flow.name}: {what} is {param.dtype}, {spm.name} holds "
                              f"{spm.elem_bits}-bit {'float' if spm.is_float else 'integer'}s")
+        b.check_range(value.start, count, spm, "invoke_range", what)
         if self.spm_of.setdefault(param.name, spm.name) != spm.name:
             raise NotImplementedError(
                 f"{param.name} is bound to both {self.spm_of[param.name]} and {spm.name}")
@@ -115,7 +124,8 @@ class InvokeBridge:
         lines = [f"reg [{self.index_bits - 1}:0] {self.base(p)};" for p in sorted(self.arrays)]
         for name, port in self.instance.results.items():
             lines += [f"reg [{port.bits - 1}:0] {self.captured(name)};", f"reg {self.seen(name)};"]
-        return "\n".join(lines + ["reg hls_running;"]) + "\n"
+        return "\n".join(lines + ["reg hls_running;", "reg hls_start_prev;",
+                                   "wire hls_start_rise = hls_ap_start && !hls_start_prev;"]) + "\n"
 
     def bridge(self) -> str:
         if not self.sites:
@@ -134,11 +144,11 @@ class InvokeBridge:
             if "d" in mem.signals:
                 writes.append(f"  if (!rst && hls_running && {port('ce')} && {port('we')})\n"
                               f"    {spm.signal}[{index}] <= {port('d')};")
-        captures = []
+        captures = ["  hls_start_prev <= !rst && hls_ap_start;"]
         for name in self.instance.results:
             valid = sig(HlsInstance.valid(name))
-            captures.append(f"  if (rst || {sig('ap_start')}) {self.seen(name)} <= 1'b0;\n"
-                            f"  else if ({valid}) {self.seen(name)} <= 1'b1;\n"
+            captures.append(f"  if (!rst && {valid}) {self.seen(name)} <= 1'b1;\n"
+                            f"  else if (rst || hls_start_rise) {self.seen(name)} <= 1'b0;\n"
                             f"  if (!rst && {valid}) {self.captured(name)} <= {sig(name)};")
             checks.append(f"  if (hls_running && {sig('ap_done')})\n"
                           f"    assert({self.seen(name)} || {valid});")

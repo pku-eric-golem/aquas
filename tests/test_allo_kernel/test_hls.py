@@ -47,3 +47,15 @@ def test_unsupported_float_op_rejected(tmp_path):
 
     with pytest.raises(NotImplementedError, match="arith.subf"):
         emit_project(allo.customize(sub), tmp_path)
+
+
+def test_float_op_needs_pipelined_loop(tmp_path):
+    def add(A: float32[4], B: float32[4]):
+        for i in range(4):
+            B[i] = A[i] + 1.0
+
+    with pytest.raises(NotImplementedError, match="outside a pipelined loop"):
+        emit_project(allo.customize(add), tmp_path / "plain")
+    s = allo.customize(add)
+    s.pipeline("i")
+    assert emit_project(s, tmp_path / "pipelined").float_calls == {"hf_add_f32": 1}

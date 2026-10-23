@@ -41,12 +41,14 @@ class HLSProject:
     returns: list[KernelParam] = field(default_factory=list)  # in Python return order
 
 
-def _walk(op):
+def _walk(op, pipelined: bool = False):
+    """Nested operations, each with whether a loop around it is pipelined."""
     for region in op.regions:
         for block in region.blocks:
             for child in block.operations:
-                yield child
-                yield from _walk(child.operation)
+                inside = pipelined or "pipeline_ii" in child.operation.attributes
+                yield child, inside
+                yield from _walk(child.operation, inside)
 
 
 def name_ports(schedule) -> list[KernelParam]:
@@ -112,15 +114,23 @@ def find_returns(schedule, code: str, inputs: int) -> list[KernelParam]:
 
 
 def lower_float_ops(schedule) -> dict[str, int]:
-    """Replace f32 add/mul with calls to the HardFloat blackboxes."""
+    """Replace f32 add/mul with calls to the HardFloat blackboxes.
+
+    Vitis accepts the ap_ctrl_none blackboxes only in pipelined regions
+    (HLS 200-1918), so float arithmetic outside a pipelined loop is rejected.
+    """
     module = schedule.module
     counts = {name: 0 for name in OPERATORS}
     with module.context, schedule.top_func.location:
         f32 = F32Type.get()
         targets = []
-        for op in _walk(module.operation):
+        for op, pipelined in _walk(module.operation):
             name = op.operation.name
             if name in FLOAT_LOWERING and op.result.type == f32:
+                if not pipelined:
+                    raise NotImplementedError(
+                        f"{name} at {op.location} is outside a pipelined loop; the HardFloat "
+                        "blackboxes need one (Vitis HLS 200-1918), e.g. s.pipeline(<loop>)")
                 targets.append(op)
             elif name in FLOAT_ARITH:
                 raise NotImplementedError(f"no HardFloat blackbox for {op}")

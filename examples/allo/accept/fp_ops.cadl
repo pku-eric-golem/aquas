@@ -1,0 +1,80 @@
+// Route 1 acceptance kernel (FP32 special values through HardFloat), built by
+// tools/allo-gen. S = A + B and P = A * B element-wise, each rounded to
+// nearest even with RISC-V canonical NaNs. SPM offsets and counts are
+// elements; _mem addresses are bytes.
+static fp_a: [f32; 256];
+static fp_b: [f32; 256];
+static fp_s: [f32; 256];
+static fp_p: [f32; 256];
+
+allo fp_ops with s """
+import allo
+from allo.ir.types import float32
+
+
+def fp_ops(A: float32[16], B: float32[16], S: float32[16], P: float32[16]):
+    for i in range(16):
+        S[i] = A[i] + B[i]
+        P[i] = A[i] * B[i]
+
+
+s = allo.customize(fp_ops)
+# The HardFloat blackboxes are fixed-latency (ap_ctrl_none); Vitis accepts them
+# only in pipelined loops.
+s.pipeline("i")
+""";
+
+// rs1: (A tile << 16) | B tile. rs2: (S tile << 16) | P tile. 16-element tiles.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype fops(rs1: u5, rs2: u5, rd: u5) {
+    let r1: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let tile_a: u32 = (r1 >> 16) & 32'hF;
+    let tile_b: u32 = r1 & 32'hF;
+    let tile_s: u32 = (r2 >> 16) & 32'hF;
+    let tile_p: u32 = r2 & 32'hF;
+    invoke fp_ops(A = fp_a[tile_a * 16 +: 16], B = fp_b[tile_b * 16 +: 16],
+                  S = fp_s[tile_s * 16 +: 16], P = fp_p[tile_p * 16 +: 16]);
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: fp_a element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_a(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    fp_a[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: fp_b element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000001)]
+rtype load_b(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    fp_b[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: fp_s element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype store_s(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    _mem[dram_base +: 16] = fp_s[spm_base +: ];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: fp_p element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000011)]
+rtype store_p(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    _mem[dram_base +: 16] = fp_p[spm_base +: ];
+    _irf[rd] = 0;
+}
