@@ -12,7 +12,7 @@ import pytest
 from cadl_frontend.allo_sv_gen.fsm import build_fsm, generate_fsm
 from cadl_frontend.allo_sv_gen.main import generate_main
 from cadl_frontend.allo_sv_gen.ports import assemble_module, load_ports
-from cadl_frontend.allo_sv_gen.spm import build_layout, generate_spm
+from cadl_frontend.allo_sv_gen.spm import build_layout, generate_spm, generate_spm_writes
 from cadl_frontend.parser import parse_proc
 from test_accept import REDUCE, _reduce_instance
 from test_fsm import _testbench
@@ -154,7 +154,8 @@ def _main(source: str) -> str:
     proc = parse_proc(source)
     layout, ports = build_layout(proc), load_ports()
     fsm = build_fsm(proc, {}, layout)
-    return assemble_module(ports, generate_spm(layout) + generate_fsm(fsm, {p.name for p in ports}))
+    return assemble_module(ports, generate_spm(layout) + generate_fsm(fsm, {p.name for p in ports})
+                           + generate_spm_writes(layout, fsm.writes()))
 
 
 def test_join_and_spm_read_states():
@@ -168,9 +169,17 @@ def test_join_and_spm_read_states():
 
 
 @pytest.mark.skipif(shutil.which("verilator") is None, reason="verilator not on PATH")
-def test_glue_simulation(tmp_path):
+@pytest.mark.parametrize("banks", ["", "4, 1", "2, 0"], ids=["flat", "cyclic4", "block2"])
+def test_glue_simulation(tmp_path, banks):
     cases = _cases()
-    (tmp_path / "main.sv").write_text(_main(SOURCE))
+    source = SOURCE
+    if banks:  # the same sequence on a banked buf (spm.py)
+        factor, cyclic = banks.split(", ")
+        source = source.replace("static buf", f"#[partition_dim_array([0])]\n"
+                                f"#[partition_factor_array([{factor}])]\n"
+                                f"#[partition_cyclic_array([{cyclic}])]\nstatic buf", 1)
+        assert f"spm_buf [0:{int(factor) - 1}][" in _main(source)
+    (tmp_path / "main.sv").write_text(_main(source))
     (tmp_path / "tb.sv").write_text(_testbench(cases))
     subprocess.run(["verilator", "--binary", "-Wno-fatal", "-Wno-lint", "-Wno-style",
                     "-Wno-PINMISSING", "--top-module", "tb", "-Mdir", "obj", "tb.sv", "main.sv"],
@@ -187,7 +196,7 @@ def test_csr_register_rejected():
         _main(source)
 
 
-def test_partitioned_spm_rejected_for_invoke():
+def test_incomplete_partition_rejected():
     source = REDUCE.replace("static red_x", "#[partition_dim_array([0])]\nstatic red_x", 1)
-    with pytest.raises(NotImplementedError, match="red_x is partitioned"):
+    with pytest.raises(ValueError, match="give all of partition_dim_array"):
         generate_main(parse_proc(source), _reduce_instance())

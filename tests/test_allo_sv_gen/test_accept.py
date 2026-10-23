@@ -6,7 +6,9 @@ Each example in examples/allo/accept is synthesized, wrapped and simulated:
 DMA loads, two invokes on different tiles, DMA stores. The expected memory and
 rd values come from Allo's own LLVM build of the same embedded code (NumPy
 for relu_count, whose mixed return that build does not support). fp_ops pushes
-FP32 special values through the HardFloat blackboxes (5.D.2).
+FP32 special values through the HardFloat blackboxes (5.D.2). banked binds
+partitioned kernel arrays to banked SPMs (5.B, 5.C) and is invoked once,
+since its output SPM holds a single result.
 """
 import os
 import re
@@ -164,6 +166,19 @@ def relu_count(model, rng):
     return s
 
 
+def banked(model, rng):
+    # A from an odd base: its two banks land on the cyclic SPM's banks swapped.
+    s = Scenario()
+    x, y = _ints(rng, 32), _ints(rng, 16)
+    s.load("load_a", 0, 16, x)
+    s.load("load_b", 1, 64, y)
+    out = np.zeros((4, 4), np.int32)
+    model(x[1:17].reshape(4, 4), y.reshape(4, 4), out)
+    s.invoke("bk", 17, 64, 1)
+    s.store("store_c", 2, 0, out.reshape(-1))
+    return s
+
+
 SPECIAL = [0x00000000, 0x80000000, 0x3F800000, 0xBF800000, 0x7F800000, 0xFF800000,
            0x7FC00001, 0x7F800001, 0xFFC00000, 0x00000001, 0x807FFFFF, 0x00800000,
            0x7F7FFFFF, 0xFF7FFFFF, 0x3F000000, 0x3FC00000, 0x00C00000, 0x7F000000,
@@ -201,7 +216,7 @@ def fp_ops(model, rng):
     return s
 
 
-SCENARIOS = [vec_add, mat_scale, reduce_sum, prefix_sum, relu_count, fp_ops]
+SCENARIOS = [vec_add, mat_scale, reduce_sum, prefix_sum, relu_count, fp_ops, banked]
 
 
 def _simulate(work: Path, out: Path, s: Scenario) -> tuple[str, np.ndarray]:

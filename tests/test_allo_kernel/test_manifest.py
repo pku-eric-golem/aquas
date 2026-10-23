@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 allo = pytest.importorskip("allo")
+from allo.customize import Partition  # noqa: E402
 from allo.ir.types import float32, int32, uint8  # noqa: E402
 
 from cadl_frontend.allo_kernel.build import build_kernel  # noqa: E402
@@ -28,7 +29,8 @@ def test_gemm_manifest_from_given_rtl(tmp_path):
     params = {p["name"]: p for p in manifest["params"]}
     assert params["A"] == {"name": "A", "interface": "ap_memory", "direction": "in",
                            "dtype": "f32", "elem_bits": 32, "shape": [64], "elements": 64,
-                           "layout": "row-major", "ports": 1, "read_latency": 1}
+                           "layout": "row-major", "partition": None, "banks": 1,
+                           "ports": 1, "read_latency": 1}
     assert [params[n]["direction"] for n in ("BT", "C", "D")] == ["in", "in", "out"]
     assert params["use_c"] == {"name": "use_c", "interface": "ap_none", "direction": "in",
                                "dtype": "ui8", "elem_bits": 8, "shape": []}
@@ -42,14 +44,35 @@ def test_manifest_without_rtl(tmp_path):
     assert {p.get("ports") for p in built.manifest["params"]} == {None}
 
 
-def test_partitioned_top_argument_rejected(tmp_path):
-    def copy(A: float32[4], B: float32[4]):
-        for i in range(4):
-            B[i] = A[i]
+def test_partitioned_top_argument_banks(tmp_path):
+    def copy(A: float32[4, 6], B: float32[4, 6]):
+        for i, j in allo.grid(4, 6):
+            B[i, j] = A[i, j]
 
     s = allo.customize(copy)
-    s.partition("copy:A")
-    with pytest.raises(NotImplementedError, match=r"partitioned top arguments \['A'\]"):
+    s.partition("copy:A", dim=2)
+    s.partition("copy:B", partition_type=Partition.Cyclic, dim=1, factor=2)
+    built = build_kernel(s, tmp_path, csynth=False)
+    a, b = built.manifest["params"]
+    assert (a["partition"], a["banks"]) == ({"type": "complete", "dim": 2, "factor": 6}, 6)
+    assert (b["partition"], b["banks"]) == ({"type": "cyclic", "dim": 1, "factor": 2}, 2)
+
+
+@pytest.mark.parametrize("apply, error", [
+    (lambda s: s.partition("copy:A", partition_type=Partition.Block, dim=2, factor=4),
+     "block factor 4 does not divide dimension 2"),
+    (lambda s: s.partition("copy:A"), "partition of all dimensions"),
+    (lambda s: (s.partition("copy:A", dim=1), s.partition("copy:A", dim=2)),
+     "partitions of several dimensions"),
+])
+def test_unsupported_partition_rejected(tmp_path, apply, error):
+    def copy(A: float32[4, 6], B: float32[4, 6]):
+        for i, j in allo.grid(4, 6):
+            B[i, j] = A[i, j]
+
+    s = allo.customize(copy)
+    apply(s)
+    with pytest.raises(NotImplementedError, match=error):
         build_kernel(s, tmp_path, csynth=False)
 
 
@@ -65,7 +88,8 @@ def test_returns_named_in_order(tmp_path):
     ret0, ret1 = built.manifest["returns"]
     assert ret0 == {"name": "ret0", "port": ret0["port"], "interface": "ap_memory",
                     "direction": None, "dtype": "i32", "elem_bits": 32, "shape": [16],
-                    "elements": 16, "layout": "row-major", "ports": None, "read_latency": 1}
+                    "elements": 16, "layout": "row-major", "partition": None, "banks": 1,
+                    "ports": None, "read_latency": 1}
     assert ret1 == {"name": "ret1", "port": ret1["port"], "interface": "ap_vld",
                     "direction": None, "dtype": "ui8", "elem_bits": 8, "shape": []}
     # Allo names the output arguments itself; they trail the inputs in kernel.cpp.

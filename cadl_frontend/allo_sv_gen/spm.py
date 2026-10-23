@@ -3,6 +3,17 @@
 Each static array gets its own byte-address region of equal power-of-two size,
 so the DMA side selects a scratchpad with a bit slice of the address (GEMM:
 three 512 KiB regions, select = addr[20:19], element = addr[18:2]).
+
+A static with CADL partition attributes on its one dimension
+(#[partition_dim_array([0])], #[partition_factor_array([f])],
+#[partition_cyclic_array([1])] for cyclic or [0] for block) is stored as f
+physical banks, `spm_<name>[bank][offset]`; every access maps its element
+index to a bank and offset with `Spm.ref`. Others stay one flat array.
+
+All writes to one SPM sit in one always block (`generate_spm_writes`): DMA
+burst lanes, kernel ports during an invoke and FSM element writes. Only one
+of the three is active at a time (one command in flight; DMA and invoke never
+overlap), which simulation asserts.
 """
 from __future__ import annotations
 
@@ -20,11 +31,37 @@ class Spm:
     elem_bits: int
     is_float: bool = False
     signed: bool = False
-    partitioned: bool = False  # carries #[partition_*] attributes
+    banks: int = 1
+    cyclic: bool = True  # cyclic or block banks; irrelevant for one bank
 
     @property
     def signal(self) -> str:
         return f"spm_{self.name}"
+
+    @property
+    def bank_size(self) -> int:
+        return self.elements // self.banks
+
+    def bank_of(self, element: int) -> int:
+        return element % self.banks if self.cyclic else element // self.bank_size
+
+    def ref(self, index: str) -> str:
+        """The storage word of element `index` (a SystemVerilog expression)."""
+        if self.banks == 1:
+            return f"{self.signal}[{index}]"
+        if self.cyclic:
+            return f"{self.signal}[({index}) % {self.banks}][({index}) / {self.banks}]"
+        return f"{self.signal}[({index}) / {self.bank_size}][({index}) % {self.bank_size}]"
+
+
+@dataclass
+class SpmWrite:
+    """A write source of an SPM: when `enable` holds, element `index` gets `data`."""
+    spm: str
+    origin: str  # "dma", "invoke" or "fsm"; sources of different origins never overlap
+    enable: str
+    index: str
+    data: str
 
 
 @dataclass
@@ -65,6 +102,34 @@ def _bits(ty: ast.BasicType) -> int:
     raise NotImplementedError(f"no SPM element width for {ty}")
 
 
+def _attr_list(name: str, attrs: dict, key: str) -> list[int]:
+    value = attrs.get(key)
+    items = value.elements if isinstance(value, ast.ArrayLiteralExpr) else None
+    if not items or not all(isinstance(e, ast.LitExpr)
+                            and isinstance(e.literal.lit, ast.LiteralInner_Fixed) for e in items):
+        raise ValueError(f"static {name}: #[{key}([...])] must list integer literals")
+    return [e.literal.lit.value for e in items]
+
+
+def _banks(name: str, ty: ast.DataType_Array, attrs: dict) -> tuple[int, bool]:
+    """Bank count and cyclic flag from the partition attributes, (1, True) if none."""
+    keys = ("partition_dim_array", "partition_factor_array", "partition_cyclic_array")
+    present = [key for key in attrs if key.startswith("partition")]
+    if not present:
+        return 1, True
+    if sorted(present) != sorted(keys):
+        raise ValueError(f"static {name}: give all of {', '.join(keys)}, not only {present}")
+    dims, factors, cyclic = (_attr_list(name, attrs, key) for key in keys)
+    if len(ty.dimensions) != 1 or dims != [0] or len(factors) != 1 or len(cyclic) != 1:
+        raise NotImplementedError(f"static {name}: only a partition of the single dimension "
+                                  f"of a 1-D static (dim [0])")
+    elements, factor = ty.dimensions[0], factors[0]
+    if factor < 1 or elements % factor or cyclic[0] not in (0, 1):
+        raise ValueError(f"static {name}: partition factor {factor} must divide {elements} "
+                         "and partition_cyclic_array be [0] or [1]")
+    return factor, bool(cyclic[0])
+
+
 def build_layout(proc: ast.Proc) -> SpmLayout:
     arrays = [(name, s.ty, s.attrs) for name, s in proc.statics.items()
               if isinstance(s.ty, ast.DataType_Array)]
@@ -73,7 +138,7 @@ def build_layout(proc: ast.Proc) -> SpmLayout:
     spms = [Spm(name, index, math.prod(ty.dimensions), _bits(ty.element_type),
                 isinstance(ty.element_type, _FLOATS),
                 isinstance(ty.element_type, ast.BasicType_ApFixed),
-                any(key.startswith("partition") for key in attrs))
+                *_banks(name, ty, attrs))
             for index, (name, ty, attrs) in enumerate(arrays)]
     if {spm.elem_bits for spm in spms} != {32}:
         # Burst lanes are carved from the beat in element-sized slices.
@@ -85,5 +150,24 @@ def build_layout(proc: ast.Proc) -> SpmLayout:
 def generate_spm(layout: SpmLayout) -> str:
     lines = [f"// SPM {spm.name}: DMA byte base 0x{layout.base(spm.name):x}" for spm in layout.spms]
     lines += [f"reg [{spm.elem_bits - 1}:0] {spm.signal} [0:{spm.elements - 1}];"
+              if spm.banks == 1 else
+              f"reg [{spm.elem_bits - 1}:0] {spm.signal} [0:{spm.banks - 1}][0:{spm.bank_size - 1}];"
               for spm in layout.spms]
     return "\n".join(lines) + "\n"
+
+
+def generate_spm_writes(layout: SpmLayout, writes: list[SpmWrite]) -> str:
+    out = []
+    for spm in layout.spms:
+        mine = [w for w in writes if w.spm == spm.name]
+        if not mine:
+            continue
+        body = "\n".join(f"  if ({w.enable})\n    {spm.ref(w.index)} <= {w.data};" for w in mine)
+        out.append(f"// SPM {spm.name}: every write\nalways @(posedge clk) begin\n{body}\nend")
+        origins = sorted({w.origin for w in mine})
+        if len(origins) > 1:
+            active = ", ".join("(" + " || ".join(f"({w.enable})" for w in mine if w.origin == o) + ")"
+                               for o in origins)
+            out.append(f"`ifndef SYNTHESIS\nalways @(posedge clk) if (!rst)\n"
+                       f"  assert($countones({{{active}}}) <= 1);  // {', '.join(origins)}\n`endif")
+    return "\n".join(out) + "\n" if out else ""

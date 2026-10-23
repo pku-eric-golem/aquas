@@ -10,7 +10,10 @@ state, so an iteration costs one extra cycle.
 An `if` statement branches the edge; both arms may wait or answer, and the
 arms that fall through meet in a join state (one cycle). An SPM element read
 `spm[i]` costs a state of its own: the value is registered first, then the
-statement that uses it runs. `spm[i] = v` is an assignment on the edge.
+statement that uses it runs. `spm[i] = v` drives the SPM's FSM write port
+(combinational `spm_<name>_fsm_*`, written by the SPM's write block in spm.py)
+on the edge, so it lands on the same clock edge; a second write to the same
+SPM on one edge waits a cycle.
 Scalar statics are persistent registers: kept across instructions and reset
 to their initial value.
 
@@ -36,7 +39,7 @@ from typing import Callable, Optional, Union
 
 from .. import cadl_ast as ast
 from ..allo import constant_integer
-from .spm import Spm, SpmLayout
+from .spm import Spm, SpmLayout, SpmWrite
 
 CMD = "rocc_cmd_rocc_cmd_"
 RESP = "rocc_resp_rocc_resp_to_bus_"
@@ -60,8 +63,9 @@ class Var:
 
 @dataclass
 class Edge:
-    actions: list[str] = field(default_factory=list)
+    actions: list[str] = field(default_factory=list)  # clocked, on the transition
     target: Union["State", "Branch", None] = None
+    ports: list[str] = field(default_factory=list)  # combinational, while it is taken
 
 
 @dataclass
@@ -102,6 +106,15 @@ class Fsm:
         self.spms: dict[str, Spm] = {}
         self.csrs: set[str] = set()
         self.uses_mem = False  # any single _mem access
+        self.spm_writes: dict[str, Spm] = {}  # SPMs with FSM element writes
+
+    @staticmethod
+    def write_port(spm: Spm) -> str:
+        return f"{spm.signal}_fsm"
+
+    def writes(self) -> list[SpmWrite]:
+        return [SpmWrite(name, "fsm", f"{self.write_port(spm)}_we", f"{self.write_port(spm)}_index",
+                         f"{self.write_port(spm)}_data") for name, spm in self.spm_writes.items()]
 
     def declare(self, reg: str, bits: int, signed: bool = False) -> Var:
         var = self.regs.setdefault(reg, Var(reg, bits, signed))
@@ -154,11 +167,16 @@ class FlowBuilder:
         self.count = 0
         self.done = False
         self.loaded: dict[int, str] = {}  # id(SPM element read) -> register holding it
+        self.written: set[str] = set()  # SPMs written on the current transition
 
     # Interface for the invoke (C) and DMA (D) handlers.
 
     def action(self, line: str) -> None:
         self.edge.actions.append(line)
+
+    def port(self, line: str) -> None:
+        """A combinational assignment, made while the current edge is taken."""
+        self.edge.ports.append(line)
 
     def wait(self, tag: str, cond: str) -> State:
         """Close the current edge into a new state left when `cond` holds."""
@@ -167,6 +185,7 @@ class FlowBuilder:
         self.fsm.states.append(state)
         self._goto(state)
         self.edge, self.env, self.on_fire = state.exit, {}, False
+        self.written = set()
         return state
 
     def wait_unless(self, tag: str, cond: str) -> State:
@@ -180,6 +199,7 @@ class FlowBuilder:
         self.fsm.states.append(state)
         self._goto(Branch(cond, rest, Edge(target=state)))
         self.edge, self.env, self.on_fire = rest, {}, False
+        self.written = set()
         return state
 
     def drive(self, signal: str, state: State) -> None:
@@ -332,7 +352,7 @@ class FlowBuilder:
                 if id(e) not in self.loaded:
                     index = self.check_range(e.indices[0], 1, spm, "spm_index", f"{spm.name} index")
                     var = self.declare(f"spm_read{len(self.loaded)}", spm.elem_bits, spm.signed)
-                    self.action(f"{var.reg} <= {spm.signal}[{index}];")
+                    self.action(f"{var.reg} <= {spm.ref(index)};")
                     self.wait("spm_read", "1'b1")
                     self.loaded[id(e)] = var.reg
                 continue
@@ -426,19 +446,26 @@ class FlowBuilder:
     def _store(self, s: ast.AssignStmt) -> None:
         spm = self._spm(s.lhs)
         self.load(s.lhs.indices[0], s.rhs)
+        if spm.name in self.written:
+            self.wait("spm_write", "1'b1")  # one FSM write per SPM and cycle
         index = self.check_range(s.lhs.indices[0], 1, spm, "spm_index", f"{spm.name} index")
-        self.action(f"{spm.signal}[{index}] <= "
-                    f"{spm.elem_bits}'({self.expr(s.rhs)});")
+        port = self.fsm.write_port(spm)
+        self.fsm.spm_writes[spm.name] = spm
+        self.port(f"{port}_we = 1'b1;")
+        self.port(f"{port}_index = {_index_bits(spm)}'({index});")
+        self.port(f"{port}_data = {spm.elem_bits}'({self.expr(s.rhs)});")
+        self.written.add(spm.name)
 
     def _if(self, s: ast.IfStmt) -> None:
         self.load(s.condition)
         cond = self.expr(s.condition)
         arms = (Edge(), Edge())
         self._goto(Branch(cond, *arms))
-        scope, env, on_fire = dict(self.scope), dict(self.env), self.on_fire
+        scope, env, on_fire, written = dict(self.scope), dict(self.env), self.on_fire, self.written
         open_ends = []
         for body, edge in zip((s.then_body, s.else_body or []), arms):
             self.edge, self.env, self.scope, self.on_fire = edge, dict(env), dict(scope), on_fire
+            self.written = set(written)
             self.done = False
             self.run(body)
             if not self.done:
@@ -453,6 +480,7 @@ class FlowBuilder:
         for edge in open_ends:
             edge.target = join
         self.edge, self.env, self.on_fire = join.exit, {}, False
+        self.written = set()
 
     def _loop(self, s: ast.DoWhileStmt) -> None:
         outer = dict(self.scope)
@@ -522,6 +550,10 @@ def build_fsm(proc: ast.Proc, handlers: dict[str, Handler],
     return fsm
 
 
+def _index_bits(spm: Spm) -> int:
+    return max(1, math.ceil(math.log2(spm.elements)))
+
+
 def _edge(edge: Edge, indent: str) -> list[str]:
     lines = [indent + action for action in edge.actions]
     target = edge.target
@@ -536,6 +568,51 @@ def _edge(edge: Edge, indent: str) -> list[str]:
     else:
         raise AssertionError("open FSM edge")
     return lines
+
+
+def _has_ports(edge: Edge) -> bool:
+    target = edge.target
+    return bool(edge.ports) or (isinstance(target, Branch)
+                                and (_has_ports(target.then) or _has_ports(target.other)))
+
+
+def _edge_ports(edge: Edge, indent: str) -> list[str]:
+    lines = [indent + line for line in edge.ports]
+    target = edge.target
+    if isinstance(target, Branch) and (_has_ports(target.then) or _has_ports(target.other)):
+        lines.append(f"{indent}if ({target.cond}) begin")
+        lines += _edge_ports(target.then, indent + "  ")
+        lines.append(f"{indent}end else begin")
+        lines += _edge_ports(target.other, indent + "  ")
+        lines.append(f"{indent}end")
+    return lines
+
+
+def _port_block(fsm: Fsm) -> list[str]:
+    """The combinational twin of the FSM for edge ports (SPM write ports)."""
+    if not fsm.spm_writes:
+        return []
+    out, body = [], ["always @(*) begin"]
+    for spm in fsm.spm_writes.values():
+        port = fsm.write_port(spm)
+        out += [f"reg {port}_we;", f"reg [{_index_bits(spm) - 1}:0] {port}_index;",
+                f"reg [{spm.elem_bits - 1}:0] {port}_data;"]
+        body += [f"  {port}_we = 1'b0;", f"  {port}_index = 0;", f"  {port}_data = 0;"]
+    body += ["  if (!rst) case (state)",
+             "    S_IDLE: if (command_fire) case ({%sopcode, %sfunct})" % (CMD, CMD)]
+    for d in fsm.decode:
+        if _has_ports(d.entry):
+            body.append(f"      {{7'h{d.opcode:02x}, 7'h{d.funct7:02x}}}: begin  // {d.flow}")
+            body += _edge_ports(d.entry, " " * 8)
+            body.append("      end")
+    body += ["      default: ;", "    endcase"]
+    for state in fsm.states[1:]:
+        if _has_ports(state.exit):
+            body.append(f"    {state.name}: if ({state.wait}) begin")
+            body += _edge_ports(state.exit, " " * 6)
+            body.append("    end")
+    body += ["    default: ;", "  endcase", "end"]
+    return out + body
 
 
 def generate_fsm(fsm: Fsm, port_names: set[str]) -> str:
@@ -597,4 +674,4 @@ def generate_fsm(fsm: Fsm, port_names: set[str]) -> str:
         body += _edge(state.exit, " " * 8)
         body.append("      end")
     body += ["      default: state <= S_IDLE;", "    endcase", "  end", "end"]
-    return "\n".join(out + body) + "\n"
+    return "\n".join(out + body + _port_block(fsm)) + "\n"

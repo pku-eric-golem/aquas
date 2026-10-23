@@ -2,7 +2,8 @@
 
 Per parameter and per return value (ret0, ret1, ... in Python return order,
 with the RTL port name Allo gave it) it records the Allo element type and shape, and for arrays the flattening
-order, the number of ap_memory ports and their read latency. Fields
+order, the bank partition, the number of ap_memory ports (over all banks)
+and their read latency. Fields
 that only the RTL can tell (direction, port count) are None until RTL exists;
 the compute latency comes from the Vitis report and is None without one.
 """
@@ -48,8 +49,10 @@ def _param(param: KernelParam, instance: HlsInstance | None, memory_latency: int
              "dtype": param.dtype, "elem_bits": param.bits, "shape": list(param.shape)}
     if param.kind == "ap_memory":
         ports = None if instance is None else sum(m.param == param.name for m in instance.memories)
+        part = param.partition
         entry.update(elements=math.prod(param.shape), layout="row-major",
-                     ports=ports, read_latency=memory_latency)
+                     partition=part and {"type": part.kind, "dim": part.dim, "factor": part.factor},
+                     banks=param.banks, ports=ports, read_latency=memory_latency)
     return entry
 
 

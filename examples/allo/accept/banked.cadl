@@ -1,0 +1,73 @@
+// Route 1 acceptance kernel (bank mapping), built by tools/allo-gen.
+// A is partitioned cyclically on its second dimension and bound to a cyclic
+// SPM at a runtime base, so its banks may rotate; C is block partitioned on
+// its first dimension and bound at base 0 to a block SPM whose banks match;
+// B stays one memory with two ports. SPM offsets and counts are elements;
+// _mem addresses are bytes.
+#[partition_dim_array([0])]
+#[partition_factor_array([2])]
+#[partition_cyclic_array([1])]
+static bk_a: [i32; 256];
+
+static bk_b: [i32; 256];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([2])]
+#[partition_cyclic_array([0])]
+static bk_c: [i32; 16];
+
+allo banked with s """
+import allo
+from allo.customize import Partition
+from allo.ir.types import int32
+
+
+def banked(A: int32[4, 4], B: int32[4, 4], C: int32[4, 4]):
+    for i, j in allo.grid(4, 4):
+        C[i, j] = A[i, j] * 3 - B[i, j] + i
+
+
+s = allo.customize(banked)
+s.partition("banked:A", partition_type=Partition.Cyclic, dim=2, factor=2)
+s.partition("banked:C", partition_type=Partition.Block, dim=1, factor=2)
+s.unroll("j", factor=2)
+""";
+
+// rs1: A element offset. rs2: B element offset. C is all of bk_c.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype bk(rs1: u5, rs2: u5, rd: u5) {
+    let a: u32 = _irf[rs1];
+    let b: u32 = _irf[rs2];
+    invoke banked(A = bk_a[a +: 16], B = bk_b[b +: 16], C = bk_c[0 +: 16]);
+    _irf[rd] = 1;
+}
+
+// rs1: DRAM byte address. rs2: bk_a element offset. 32 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype load_a(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    bk_a[spm_base +: ] = _mem[dram_base +: 32];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: bk_b element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000001)]
+rtype load_b(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    bk_b[spm_base +: ] = _mem[dram_base +: 16];
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. All 16 elements of bk_c, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype store_c(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    _mem[dram_base +: 16] = bk_c[0 +: ];
+    _irf[rd] = 0;
+}

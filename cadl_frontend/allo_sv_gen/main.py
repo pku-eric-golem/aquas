@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 from .. import cadl_ast as ast
-from .burst import generate_burst
+from .burst import burst_writes, generate_burst
 from .dma import DmaBridge
 from .fsm import build_fsm, generate_fsm
 from ..allo_kernel.interface import HlsInstance
 from .instantiate import generate_hls_instance
 from .invoke import InvokeBridge
 from .ports import WrapperPort, assemble_module, load_ports
-from .spm import build_layout, generate_spm
+from .spm import build_layout, generate_spm, generate_spm_writes
 
 
 def generate_main(proc: ast.Proc, instance: HlsInstance,
@@ -22,4 +22,6 @@ def generate_main(proc: ast.Proc, instance: HlsInstance,
     body = (generate_spm(layout) + generate_hls_instance(instance) + invoke.declarations()
             + dma.declarations() + generate_fsm(fsm, {p.name for p in ports})
             + invoke.bridge() + dma.wiring() + generate_burst(layout, ports))
+    writes = burst_writes(layout, ports) + invoke.writes + fsm.writes()
+    body += generate_spm_writes(layout, writes)
     return assemble_module(ports, body)

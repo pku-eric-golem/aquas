@@ -5,8 +5,18 @@ and each scalar binding into `hls_<param>`, then holds ap_start until the core
 raises ap_ready (ap_ctrl_hs; a loop pipelined in the top function only issues
 iterations while ap_start is high), then waits for ap_done unless it came with
 ap_ready, as from a sequential core.
-Memory ports read `spm[base + address]` with one cycle of latency and write
-only while the invoke runs (both states).
+Memory ports read `spm[base + element]` with one cycle of latency and write
+only while the invoke runs (both states); `element` is the port address, or
+for a bank of a partitioned kernel array the element that bank address holds
+(interface.bank_element). Writes go to the SPM's write block (spm.py).
+
+Each SPM bank serves at most BANK_PORTS kernel ports at once (a true
+dual-port memory). Per invoke, the kernel ports that may reach each bank are
+counted from the partitions of both sides: exactly for a constant base, and
+for a runtime base the worst case over all bases (for a cyclic SPM, every
+base rotates one binding's per-bank counts, so its largest count holds; for
+block banks or one bank, all its ports may meet). More is rejected rather
+than arbitrated, since ap_memory ports cannot be stalled.
 
 Results bind in Python return order: an array result is an SPM range, like
 an array argument; a scalar result is captured from its ap_vld strobe and
@@ -19,9 +29,29 @@ import math
 
 from .. import cadl_ast as ast
 from ..allo import constant_integer
-from ..allo_kernel.interface import HlsInstance, KernelParam
+from ..allo_kernel.interface import HlsInstance, KernelParam, MemoryPort, Partition, bank_element
 from .fsm import FlowBuilder, _basic
-from .spm import SpmLayout
+from .spm import Spm, SpmLayout, SpmWrite
+
+BANK_PORTS = 2
+
+
+def bank_element_sv(shape: tuple[int, ...], partition: Partition | None, bank: int | None,
+                    addr: str) -> str:
+    """SystemVerilog for interface.bank_element at a runtime address."""
+    if partition is None:
+        return addr
+    k = partition.dim - 1
+    inner, local, factor = math.prod(shape[k + 1:]), shape[k] // partition.factor, partition.factor
+    first = bank if partition.kind == "cyclic" else bank * local
+    step = factor if partition.kind == "cyclic" else 1
+    j = f"({addr})" if inner == 1 else f"(({addr}) / {inner})"
+    if k > 0:
+        j = f"({j} % {local})"
+    i = f"({first} + {j} * {step})"
+    outer = f"(({addr}) / {inner * local}) * {shape[k]} + " if k > 0 else ""
+    rest = f" + ({addr}) % {inner}" if inner > 1 else ""
+    return f"(({outer}{i}){f' * {inner}' if inner > 1 else ''}{rest})"
 
 
 class InvokeBridge:
@@ -57,6 +87,7 @@ class InvokeBridge:
             raise ValueError(f"{b.flow.name}: invoke binds {len(stmt.results)} results, "
                              f"{stmt.kernel} returns {len(returns)}")
         params = {p.name: p for p in self.instance.params}
+        self.site_banks: list[tuple[KernelParam, Spm, int | None]] = []
         for binding in stmt.bindings:
             value = binding.value
             if binding.name in self.arrays:
@@ -81,6 +112,7 @@ class InvokeBridge:
                     raise ValueError(f"{b.flow.name}: {result.name} is {var.bits} bits, "
                                      f"{what} is {ret.bits}")
                 scalars.append((result.name, var, ret.name))
+        self._check_banks(b.flow.name)
         sig = self.instance.signal
         start = b.wait("invoke_start", sig("ap_ready"))
         b.drive(sig("ap_start"), start)
@@ -102,10 +134,6 @@ class InvokeBridge:
                 and value.expr.name in {s.name for s in self.layout.spms}):
             raise ValueError(f"{b.flow.name}: {what} must bind an SPM range")
         spm = self.layout[value.expr.name]
-        if spm.partitioned:
-            # The SPM is one flat array; banks matching Allo partitions are not mapped.
-            raise NotImplementedError(f"{b.flow.name}: {spm.name} is partitioned; "
-                                      "invoke binds only unpartitioned SPMs")
         count = constant_integer(value.length)
         if param.shape and count != math.prod(param.shape):
             raise ValueError(f"{b.flow.name}: {what} binds {count} elements of {spm.name}, "
@@ -119,6 +147,41 @@ class InvokeBridge:
             raise NotImplementedError(
                 f"{param.name} is bound to both {self.spm_of[param.name]} and {spm.name}")
         b.action(f"{self.base(param.name)} <= {self.index_bits}'({index});")
+        self.site_banks.append((param, spm, constant_integer(value.start)))
+
+    def _ports(self, param: KernelParam) -> list[MemoryPort]:
+        return [m for m in self.instance.memories if m.param == param.name]
+
+    def _bank_counts(self, param: KernelParam, spm: Spm, base: int) -> list[int]:
+        """Kernel ports of `param` that may reach each bank of `spm` from element `base`."""
+        counts = [0] * spm.banks
+        for mem in self._ports(param):
+            size = math.prod(param.partition.bank_shape(param.shape)) if param.partition \
+                else math.prod(param.shape)
+            for bank in {spm.bank_of(base + bank_element(param.shape, param.partition, mem.bank, a))
+                         for a in range(size)}:
+                counts[bank] += 1
+        return counts
+
+    def _check_banks(self, flow: str) -> None:
+        """At most BANK_PORTS kernel ports per SPM bank during this invoke."""
+        for spm in {spm.name: spm for _, spm, _ in self.site_banks}.values():
+            exact, worst = [0] * spm.banks, 0
+            for param, bound, base in self.site_banks:
+                if bound is not spm:
+                    continue
+                if base is not None:
+                    exact = [x + y for x, y in zip(exact, self._bank_counts(param, spm, base))]
+                elif spm.banks > 1 and spm.cyclic:
+                    worst += max(self._bank_counts(param, spm, 0))
+                else:
+                    worst += len(self._ports(param))
+            if max(exact) + worst > BANK_PORTS:
+                names = sorted(p.name for p, bound, _ in self.site_banks if bound is spm)
+                raise ValueError(
+                    f"{flow}: up to {max(exact) + worst} kernel ports of {names} may reach one "
+                    f"bank of {spm.name} ({spm.banks} {'cyclic' if spm.cyclic else 'block'} "
+                    f"bank{'s' if spm.banks > 1 else ''}) at once; a bank has {BANK_PORTS} ports")
 
     def declarations(self) -> str:
         lines = [f"reg [{self.index_bits - 1}:0] {self.base(p)};" for p in sorted(self.arrays)]
@@ -131,19 +194,23 @@ class InvokeBridge:
         if not self.sites:
             raise ValueError(f"{self.instance.top} is never invoked")
         sig = self.instance.signal
-        reads, writes, checks = [], [], []
+        reads, checks = [], []
+        self.writes: list[SpmWrite] = []
+        params = {p.name: p for p in [*self.instance.params, *self.instance.returns]}
         for mem in self.instance.memories:
-            spm = self.layout[self.spm_of[mem.param]]
-            port = lambda role: sig(f"{mem.param}_{role}{mem.index}")  # noqa: E731
-            index = f"{self.base(mem.param)} + {port('address')}"
-            wide = f"{{1'b0, {self.base(mem.param)}}} + {port('address')}"
+            spm, param = self.layout[self.spm_of[mem.param]], params[mem.param]
+            port = lambda role: sig(mem.port(role))  # noqa: E731
+            element = bank_element_sv(param.shape, param.partition, mem.bank, port("address"))
+            index = f"{self.base(mem.param)} + {element}"
+            wide = f"{{1'b0, {self.base(mem.param)}}} + {element}"
             checks.append(f"  if ({port('ce')}) assert({wide} < {spm.elements});")
             if "q" in mem.signals:
                 reads.append(f"  if (!rst && {port('ce')})\n"
-                             f"    {port('q')} <= {spm.signal}[{index}];")
+                             f"    {port('q')} <= {spm.ref(index)};")
             if "d" in mem.signals:
-                writes.append(f"  if (!rst && hls_running && {port('ce')} && {port('we')})\n"
-                              f"    {spm.signal}[{index}] <= {port('d')};")
+                self.writes.append(SpmWrite(spm.name, "invoke",
+                                            f"!rst && hls_running && {port('ce')} && {port('we')}",
+                                            index, port("d")))
         captures = ["  hls_start_prev <= !rst && hls_ap_start;"]
         for name in self.instance.results:
             valid = sig(HlsInstance.valid(name))
@@ -152,6 +219,6 @@ class InvokeBridge:
                             f"  if (!rst && {valid}) {self.captured(name)} <= {sig(name)};")
             checks.append(f"  if (hls_running && {sig('ap_done')})\n"
                           f"    assert({self.seen(name)} || {valid});")
-        return ("always @(posedge clk) begin\n" + "\n".join(reads + writes + captures) + "\nend\n"
+        return ("always @(posedge clk) begin\n" + "\n".join(reads + captures) + "\nend\n"
                 "`ifndef SYNTHESIS\nalways @(posedge clk) if (!rst) begin\n"
                 + "\n".join(checks) + "\nend\n`endif\n")

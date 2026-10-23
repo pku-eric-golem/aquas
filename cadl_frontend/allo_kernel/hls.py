@@ -23,7 +23,7 @@ from allo._mlir.ir import (F32Type, FlatSymbolRefAttr, FunctionType, InsertionPo
                            MemRefType, StringAttr)
 
 from .blackbox import OPERATORS, build_blackboxes
-from .interface import KernelParam
+from .interface import KernelParam, Partition
 from .rtl_fixups import fix_rtl
 
 FLOAT_LOWERING = {"arith.addf": "hf_add_f32", "arith.mulf": "hf_mul_f32"}
@@ -51,29 +51,48 @@ def _walk(op, pipelined: bool = False):
                 yield from _walk(child.operation, inside)
 
 
+PARTITION_KINDS = {0: "complete", 1: "block", 2: "cyclic"}  # allo.customize.Partition
+
+
+def _partition(name: str, shape: tuple[int, ...], entries: list) -> Partition:
+    """The one-dimension partition of top argument `name` from Allo's record."""
+    if len(entries) != 1:
+        raise NotImplementedError(f"{name}: partitions of several dimensions {entries}")
+    kind, dim, factor = entries[0]
+    kind = PARTITION_KINDS[kind]
+    if dim == 0 and len(shape) == 1:
+        dim = 1  # all dimensions of a 1-D array
+    if not 1 <= dim <= len(shape):
+        raise NotImplementedError(f"{name}: partition of all dimensions of {list(shape)}")
+    if kind == "complete":
+        factor = shape[dim - 1]
+    if factor < 1 or shape[dim - 1] % factor:
+        raise NotImplementedError(f"{name}: {kind} factor {factor} does not divide "
+                                  f"dimension {dim} of {list(shape)}")
+    return Partition(kind, dim, factor)
+
+
 def name_ports(schedule) -> list[KernelParam]:
     """Keep the Python argument names on the HLS top function.
 
-    Arrays stay one row-major memory each: a partitioned top argument would
-    split into several memories, which the wrapper does not map, so it is
-    rejected here rather than later as unknown RTL ports.
+    An array is one row-major memory, or one per bank if partitioned on one
+    dimension by a factor that divides it (see interface.Partition).
     """
     top = schedule.top_func
     args = schedule.func_args[schedule.top_func_name]
     names = [arg.name for arg in args]
     types = list(top.type.inputs)
     assert len(names) == len(types), (names, types)
-    partitioned = [n for n in names if f"{schedule.top_func_name}:{n}" in schedule.partitioned_arrays]
-    if partitioned:
-        raise NotImplementedError(f"{schedule.top_func_name}: partitioned top arguments {partitioned}")
     with schedule.module.context:
         top.attributes["inputs"] = StringAttr.get(",".join(names))
     params = []
     for arg, ty in zip(args, types):
         memory = MemRefType.isinstance(ty)
+        shape = tuple(MemRefType(ty).shape) if memory else ()
+        entries = schedule.partitioned_arrays.get(f"{schedule.top_func_name}:{arg.name}")
         params.append(KernelParam(arg.name, "ap_memory" if memory else "ap_none",
-                                  str(arg.dtype), arg.dtype.bits,
-                                  tuple(MemRefType(ty).shape) if memory else ()))
+                                  str(arg.dtype), arg.dtype.bits, shape,
+                                  _partition(arg.name, shape, entries) if entries else None))
     return params
 
 
