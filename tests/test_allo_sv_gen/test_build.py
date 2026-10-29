@@ -67,5 +67,7 @@ def test_full_build_with_vitis(tmp_path):
     manifest = json.loads((tmp_path / "full/manifest.json").read_text())
     assert manifest["rtl"]["provenance"] == "vitis_hls + rtl_fixups"
     fixups = json.loads((result.hls.directory / "rtl_fixups.json").read_text())
-    assert [f["fix"] for f in fixups] == ["drop dangling ap_ready pin"]  # no stall patching
+    # No stall patching. With one blackbox per call site Vitis no longer wires
+    # the dangling ap_ready pin either, so dropping it is allowed, not required.
+    assert {f["fix"] for f in fixups} <= {"drop dangling ap_ready pin"}
     assert "HLS 200-880" not in (result.hls.directory / "csynth.log").read_text()

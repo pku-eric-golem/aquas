@@ -9,12 +9,23 @@ The blackbox has no output besides its return value. The archived manual flow
 also declared a constant `bool &ap_ready` output; Vitis then stalls the calling
 pipeline waiting for that output forever, which needed a stall-predicate patch.
 Without it no stall appears (GEMM and the Allo library systolic array).
+
+Every call site gets a blackbox of its own, `<operation>_s<i>`, so Vitis
+cannot bind two calls to one instance. In a loop with II > 1 it otherwise may,
+and its RTL can then let one call's in-flight operand hold take priority over
+the other call's issue cycle, so the second call computes on the first one's
+operands (sharing.py checks the binding after synthesis).
+
+Vitis also drops a blackbox argument that repeats another: for `x * x` it
+passes undef and leaves port b unconnected. A call with one operand twice
+therefore uses the one-input variant `hf_<op>_tied_f32`, whose RTL feeds its
+input to both operands (rtl_fixups.py rejects any unconnected input).
 """
 from __future__ import annotations
 
 import importlib.util
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -29,6 +40,7 @@ class FloatOp:
     expr: str  # C model
     pred: int = 0  # HFCompute comparison predicate
     rm: int = 0  # HardFloat rounding mode: 0 nearest even, 1 toward zero
+    tied: bool = False  # one input, used as both operands
 
     @property
     def result_bits(self) -> int:
@@ -60,6 +72,15 @@ CMPF_PREDICATES = ["false", "oeq", "ogt", "oge", "olt", "ole", "one", "ord",
                    "ueq", "ugt", "uge", "ult", "ule", "une", "uno", "true"]
 OPERATORS |= {f"hf_cmp_{name}_f32": FloatOp(6, 1, FF, "bool", expr, pred=pred)
               for name, (pred, expr) in COMPARISONS.items()}
+
+
+def tied(name: str) -> str:
+    """The one-input variant of binary operation `name`."""
+    return name.removesuffix("_f32") + "_tied_f32"
+
+
+OPERATORS |= {tied(name): replace(op, args=op.args[:1], tied=True)
+              for name, op in OPERATORS.items() if len(op.args) == 2}
 LATENCY = 3  # add, sub and mul
 
 HEADER = """#ifndef ALLO_HARDFLOAT_MODEL_H
@@ -84,6 +105,16 @@ static inline float hf_canonical(float value) {
 PROTOTYPES
 #endif
 """
+
+
+def site(name: str, index: int) -> str:
+    """The blackbox of the `index`-th call of operation `name`."""
+    return f"{name}_s{index}"
+
+
+def call_sites(calls: dict[str, int]) -> list[tuple[str, str]]:
+    """(blackbox, operation) for every call counted in `calls`."""
+    return [(site(name, i), name) for name, count in calls.items() for i in range(count)]
 
 
 def _packager():
@@ -128,7 +159,7 @@ static inline void {name}({_params(op)}, {op.ret} *result) {{
 def _rtl(name: str, op: FloatOp) -> str:
     # Vitis instantiates the blackbox under its C function name.
     inputs = ", ".join("ab"[:len(op.args)])
-    b = "b" if len(op.args) == 2 else "32'b0"
+    b = "a" if op.tied else "b" if len(op.args) == 2 else "32'b0"
     bits = op.result_bits
     return f"""module {name}_rtl(
  input wire ap_clk, ap_rst, ap_ce,
@@ -147,10 +178,11 @@ endmodule
 
 
 def _model(name: str, op: FloatOp) -> str:
+    tie = "    const float b = a;\n" if op.tied else ""
     return f"""#include "hardfloat_model.h"
 extern "C" {op.ret} {name}_rtl({_params(op)}) {{
     #pragma HLS interface ap_ctrl_none port=return
-    volatile {op.ret} value = {op.expr};
+{tie}    volatile {op.ret} value = {op.expr};
     return hf_canonical(value);
 }}
 """
@@ -178,22 +210,24 @@ def _config(name: str, op: FloatOp, out: Path, with_bundle: bool) -> dict:
     }
 
 
-def build_blackboxes(out: Path, names: list[str]) -> list[Path]:
-    """Write models, RTL and Vitis blackbox JSON for `names`; return the JSON paths."""
+def build_blackboxes(out: Path, calls: dict[str, int]) -> list[Path]:
+    """Write models, RTL and Vitis blackbox JSON for every call site in `calls`
+    (operation -> number of calls); return the JSON paths."""
     out = out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     (out / "HardFloatNative.v").write_text(_native_bundle(_packager()))
-    adapters = "\n".join(_adapter(name, op) for name, op in OPERATORS.items())
+    sites = call_sites(calls)
+    adapters = "\n".join(_adapter(blackbox, OPERATORS[name]) for blackbox, name in sites)
     (out / "hardfloat_model.h").write_text(HEADER.replace("PROTOTYPES", adapters))
     configs = []
-    for index, name in enumerate(names):
+    for index, (blackbox, name) in enumerate(sites):
         op = OPERATORS[name]
-        (out / f"{name}.v").write_text(_rtl(name, op))
-        (out / f"{name}.cpp").write_text(_model(name, op))
+        (out / f"{blackbox}.v").write_text(_rtl(blackbox, op))
+        (out / f"{blackbox}.cpp").write_text(_model(blackbox, op))
         # HardFloatNative.v may be listed by only one blackbox, or Vitis
         # sees its modules defined twice.
-        config = _config(name, op, out, with_bundle=index == 0)
-        path = out / f"{name}.json"
+        config = _config(blackbox, op, out, with_bundle=index == 0)
+        path = out / f"{blackbox}.json"
         path.write_text(json.dumps(config, indent=2) + "\n")
         configs.append(path)
     return configs

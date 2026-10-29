@@ -50,6 +50,41 @@ def test_dangling_ready_pin_dropped_rest_untouched(tmp_path):
         assert line in fixed
 
 
+def test_dangling_ready_pin_of_a_call_site_blackbox_dropped(tmp_path):
+    site = PE.replace("hf_add_f32_rtl", "hf_add_f32_s3_rtl")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/systolic_PE_kernel_3_3.v").write_text(site)
+    (tmp_path / "src/hf_add_f32_s3.v").write_text("module hf_add_f32_s3_rtl();\nendmodule\n")
+    record = fix_rtl(tmp_path / "src", tmp_path / "out")
+    assert record == [dict(file="systolic_PE_kernel_3_3.v", fix="drop dangling ap_ready pin",
+                           signal="grp_hf_add_f32_s3_rtl_fu_99_ap_ready")]
+
+
+def test_unconnected_blackbox_input_is_rejected(tmp_path):
+    # Vitis 2024.1 output for B[i] = v * v through a two-input blackbox: b is gone.
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/square.v").write_text("""module square();
+hf_mul_f32_s0_rtl grp_hf_mul_f32_s0_rtl_fu_95(
+    .ap_clk(ap_clk),
+    .ap_rst(ap_rst),
+    .ap_ce(grp_hf_mul_f32_s0_rtl_fu_95_ap_ce),
+    .a(v4_reg_173),
+    .result(grp_hf_mul_f32_s0_rtl_fu_95_ap_return)
+);
+endmodule
+""")
+    (tmp_path / "src/hf_mul_f32_s0.v").write_text("""module hf_mul_f32_s0_rtl(
+ input wire ap_clk, ap_rst, ap_ce,
+ input wire [31:0] a, b,
+ output wire [31:0] result
+);
+endmodule
+""")
+    with pytest.raises(ValueError, match="grp_hf_mul_f32_s0_rtl_fu_95 leaves input b of "
+                                         "hf_mul_f32_s0_rtl unconnected"):
+        fix_rtl(tmp_path / "src", tmp_path / "out")
+
+
 def test_ready_pin_with_a_reader_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="unexpected ap_ready pins"):
         _fix(tmp_path, PE.replace("endmodule", "assign x = grp_hf_add_f32_rtl_fu_99_ap_ready;\nendmodule"))

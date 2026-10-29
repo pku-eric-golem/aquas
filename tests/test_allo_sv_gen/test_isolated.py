@@ -70,8 +70,8 @@ def test_worker_errors_keep_their_type(tmp_path):
 def test_provenance_and_both_hls_sources(tmp_path):
     _build(GEMM, tmp_path / "out", rtl=MANUAL / "rtl")
     hls = tmp_path / "out/hls"
-    assert "hf_add_f32(" not in (hls / "kernel.orig.cpp").read_text()
-    assert "hf_add_f32(" in (hls / "kernel.cpp").read_text()
+    assert "hf_add_f32" not in (hls / "kernel.orig.cpp").read_text()
+    assert "hf_add_f32_s0(" in (hls / "kernel.cpp").read_text()
     provenance = json.loads((hls / "kernel.json").read_text())["provenance"]
     assert set(provenance["versions"]) == {"python", "allo", "vitis_hls", "generator", "hardfloat"}
     assert set(provenance["hashes"]) == {"kernel.orig.cpp", "kernel.cpp", "blackbox", "rtl"}

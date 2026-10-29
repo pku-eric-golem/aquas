@@ -24,10 +24,11 @@ from allo._mlir.dialects import arith as arith_d, func as func_d
 from allo._mlir.ir import (F32Type, FlatSymbolRefAttr, FloatAttr, FunctionType, InsertionPoint,
                            IntegerAttr, MemRefType, StringAttr)
 
-from .blackbox import CMPF_PREDICATES, OPERATORS, build_blackboxes
+from .blackbox import CMPF_PREDICATES, OPERATORS, build_blackboxes, site, tied
 from .interface import KernelParam, Partition
 from .project import HLSProject
 from .rtl_fixups import fix_rtl
+from .sharing import check_unshared
 
 # f32 operation -> blackbox. Conversions are to/from i32; cmpf picks one per predicate.
 FLOAT_LOWERING = {"arith.addf": "hf_add_f32", "arith.subf": "hf_sub_f32",
@@ -184,7 +185,9 @@ def lower_float_ops(schedule) -> dict[str, int]:
 
     Vitis accepts the ap_ctrl_none blackboxes only in pipelined regions
     (HLS 200-1918), so float arithmetic outside a pipelined loop is rejected;
-    integer constants converted to f32 are folded first.
+    integer constants converted to f32 are folded first. Each call gets its
+    own blackbox (blackbox.site), a call with one operand twice the one-input
+    variant (blackbox.tied); the result counts the calls per operation.
     """
     module = schedule.module
     counts = {name: 0 for name in OPERATORS}
@@ -205,15 +208,19 @@ def lower_float_ops(schedule) -> dict[str, int]:
                 raise NotImplementedError(f"no HardFloat blackbox for {op}")
         for op, callee in targets:
             result = op.results[0].type
+            operands = list(op.operands)
+            if len(operands) == 2 and operands[0] == operands[1]:
+                callee, operands = tied(callee), operands[:1]
+            blackbox = site(callee, counts[callee])
             with InsertionPoint(op), op.location:
-                call = func_d.CallOp([result], FlatSymbolRefAttr.get(callee), list(op.operands))
-            signatures[callee] = FunctionType.get([v.type for v in op.operands], [result])
+                call = func_d.CallOp([result], FlatSymbolRefAttr.get(blackbox), operands)
+            signatures[blackbox] = FunctionType.get([v.type for v in operands], [result])
             op.results[0].replace_all_uses_with(call.result)
             op.operation.erase()
             counts[callee] += 1
         with InsertionPoint.at_block_begin(module.body):
-            for callee, signature in signatures.items():
-                decl = func_d.FuncOp(callee, signature)
+            for blackbox, signature in signatures.items():
+                decl = func_d.FuncOp(blackbox, signature)
                 decl.attributes["sym_visibility"] = StringAttr.get("private")
     return {name: count for name, count in counts.items() if count}
 
@@ -242,7 +249,7 @@ def emit_project(schedule, directory: Path, *, part: str = "xc7z020clg400-1",
     # Allo emits from a copy of the module, so this leaves the schedule as it is.
     (directory / "kernel.orig.cpp").write_text(schedule.build(target="vivado_hls").hls_code)
     calls = lower_float_ops(schedule)
-    blackboxes = build_blackboxes(directory / "blackbox", list(calls))
+    blackboxes = build_blackboxes(directory / "blackbox", calls)
     code = schedule.build(target="vivado_hls").hls_code
     returns = find_returns(schedule, code, len(ports))
     if calls:
@@ -258,6 +265,7 @@ def run_csynth(project: HLSProject, vitis_hls: str = "vitis_hls") -> Path:
     with open(project.directory / "csynth.log", "w") as log:
         subprocess.run([vitis_hls, "-f", "run.tcl"], cwd=project.directory,
                        stdout=log, stderr=subprocess.STDOUT, check=True)
+    check_unshared(project.directory / "out.prj/solution1/.autopilot/db")
     rtl = project.directory / "rtl"
     record = fix_rtl(project.directory / "out.prj/solution1/syn/verilog", rtl)
     (project.directory / "rtl_fixups.json").write_text(json.dumps(record, indent=2) + "\n")

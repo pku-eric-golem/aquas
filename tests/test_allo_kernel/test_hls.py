@@ -25,7 +25,9 @@ def test_gemm_native_interface(tmp_path):
     code = (tmp_path / "kernel.cpp").read_text()
     assert "m_axi" not in code
     assert "float A[64]" in code and "uint8_t use_c" in code
-    assert code.count("hf_add_f32(") == 2 and code.count("hf_mul_f32(") == 1
+    # One blackbox per call site, so Vitis cannot bind two calls to one instance.
+    assert [code.count(f"{n}(") for n in ("hf_add_f32_s0", "hf_add_f32_s1", "hf_mul_f32_s0")] == [1, 1, 1]
+    assert "hf_add_f32_s2" not in code
     assert not re.search(r"float v\d+ = v\d+ [-+*/] v\d+;", code)
 
     tcl = (tmp_path / "run.tcl").read_text()
@@ -33,10 +35,11 @@ def test_gemm_native_interface(tmp_path):
     assert "set_directive_interface -mode ap_none gemm_fp32 use_c" in tcl
 
     configs = [json.loads((tmp_path / f"blackbox/{n}.json").read_text())
-               for n in ("hf_add_f32", "hf_mul_f32")]
+               for n in ("hf_add_f32_s0", "hf_add_f32_s1", "hf_mul_f32_s0")]
     bundled = [c for c in configs if any(f.endswith("HardFloatNative.v") for f in c["rtl_files"])]
     assert len(bundled) == 1
-    assert [c["c_function_name"] for c in configs] == ["hf_add_f32_rtl", "hf_mul_f32_rtl"]
+    assert [c["c_function_name"] for c in configs] == [
+        "hf_add_f32_s0_rtl", "hf_add_f32_s1_rtl", "hf_mul_f32_s0_rtl"]
     assert all(c["c_return"]["rtl_ports"]["data_write_out"] == "result" for c in configs)
 
 
@@ -73,9 +76,28 @@ def test_float_ops_lowered_to_blackboxes(tmp_path):
                                    "hf_sitofp_f32": 1, "hf_uitofp_f32": 1, "hf_fptosi_f32": 1,
                                    "hf_neg_f32": 1, "hf_cmp_one_f32": 1}
     code = (tmp_path / "kernel.cpp").read_text()
-    assert "hf_cmp_one_f32(" in code and " - " not in code.split("void ops(")[1]
-    assert json.loads((tmp_path / "blackbox/hf_cmp_one_f32.json").read_text())[
+    assert "hf_cmp_one_f32_s0(" in code and " - " not in code.split("void ops(")[1]
+    assert json.loads((tmp_path / "blackbox/hf_cmp_one_f32_s0.json").read_text())[
         "rtl_performance"] == {"latency": "1", "II": "1"}
+
+
+def test_repeated_operand_uses_one_input_blackbox(tmp_path):
+    # Vitis drops a blackbox argument that repeats another (port b left unconnected).
+    def square(A: float32[4], B: float32[4]):
+        for i in range(4):
+            v: float32 = A[i]
+            B[i] = v * v + v
+
+    s = allo.customize(square)
+    s.pipeline("i")
+    project = emit_project(s, tmp_path)
+    assert project.float_calls == {"hf_add_f32": 1, "hf_mul_tied_f32": 1}
+    code = (tmp_path / "kernel.cpp").read_text()
+    assert re.search(r"hf_mul_tied_f32_s0\(v\d+, &v\d+\);", code)
+    assert re.search(r"hf_add_f32_s0\(v\d+, v\d+, &v\d+\);", code)
+    config = json.loads((tmp_path / "blackbox/hf_mul_tied_f32_s0.json").read_text())
+    assert [p["c_name"] for p in config["c_parameters"]] == ["a"]
+    assert ".a(a), .b(a)," in (tmp_path / "blackbox/hf_mul_tied_f32_s0.v").read_text()
 
 
 def test_float_op_needs_pipelined_loop(tmp_path):
@@ -101,4 +123,4 @@ def test_constant_conversions_folded(tmp_path):
     project = emit_project(allo.customize(init), tmp_path)
     assert project.float_calls == {}
     code = (tmp_path / "kernel.cpp").read_text()
-    assert "hf_sitofp_f32(" not in code and "16777216.000000" in code
+    assert "hf_sitofp_f32" not in code and "16777216.000000" in code

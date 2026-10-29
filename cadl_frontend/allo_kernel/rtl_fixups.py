@@ -10,6 +10,10 @@ Vitis then stalls the calling pipeline on a completion that never comes. Our
 blackboxes do not declare it, so that stall must not appear; a stall predicate
 with a term made only of loop-valid signals raises instead of being patched.
 
+Every input port of a HardFloat blackbox must be connected: Vitis drops a
+blackbox argument that repeats another (blackbox.py avoids the ones it can
+see), and an unconnected operand reads as 0 in simulation.
+
 The repaired RTL must be self-contained: every module it instantiates is
 defined in it (Vitis helper modules, the HardFloat blackboxes). An instance of
 anything else is an FPGA primitive or vendor IP (DSP48, RAMB, xpm_*, Xilinx
@@ -21,11 +25,12 @@ import re
 import shutil
 from pathlib import Path
 
-INSTANCE = re.compile(r"\bhf_\w+?_f32(?:_rtl)?\s+\w+\s*\([\s\S]*?\);")  # any blackbox.OPERATORS
+INSTANCE = re.compile(r"\bhf_\w+?_f32(?:_s\d+)?(?:_rtl)?\s+\w+\s*\([\s\S]*?\);")  # any blackbox site
 STALL = re.compile(r"\b(ap_block_pp0_stage\d+\w*)\s*=\s*([^;]+);")
 LOOP_SIGNAL = re.compile(r"\b(?:icmp_ln\d+_reg_\d+_pp0_iter\d+_reg|ap_enable_reg_pp0_iter\d+)\b")
 CONSTANT = re.compile(r"\d+'[db][01]|[()&|=~\s]")
 MODULE = re.compile(r"^\s*module\s+(\w+)", re.M)
+BLACKBOX = re.compile(r"^\s*module\s+(hf_\w+_rtl)\s*\(([\s\S]*?)\);", re.M)
 # `name #(...) instance (` or `name instance (` at the start of a statement.
 INSTANTIATION = re.compile(r"(?:^|;)\s*(?:\(\*[^*]*\*\)\s*)?([A-Za-z_]\w*)\s+(?:#\s*\(|[A-Za-z_]\w*\s*\()", re.M)
 KEYWORDS = {"input", "output", "inout", "wire", "reg", "assign", "always", "initial", "module",
@@ -99,6 +104,29 @@ def check_self_contained(texts: dict[str, str]) -> None:
                          f"vendor IP?): {', '.join(sorted(foreign))}")
 
 
+def _inputs(header: str) -> set[str]:
+    """Input port names of an ANSI module header."""
+    names = set()
+    for part in re.split(r"\b(?=input\b|output\b|inout\b)", header):
+        if part.startswith("input"):
+            names |= set(re.findall(r"\w+", re.sub(r"^input\s+(?:wire\s+)?(?:\[[^\]]*\]\s*)?", "", part)))
+    return names
+
+
+def check_blackbox_inputs(texts: dict[str, str]) -> None:
+    """Every HardFloat blackbox instance in `texts` (file -> source) connects all its inputs."""
+    inputs = {name: _inputs(header) for text in texts.values()
+              for name, header in BLACKBOX.findall(text)}
+    for file, text in texts.items():
+        for instance in INSTANCE.findall(text):
+            module, name = instance.split("(")[0].split()
+            missing = inputs.get(module, set()) - set(re.findall(r"\.(\w+)\s*\(", instance))
+            if missing:
+                raise ValueError(f"{file}: {name} leaves input {', '.join(sorted(missing))} of "
+                                 f"{module} unconnected (Vitis drops a blackbox argument that "
+                                 "repeats another, e.g. two loads of one element)")
+
+
 def fix_rtl(source_dir: Path, out_dir: Path) -> list[dict]:
     """Copy Vitis Verilog from `source_dir` to `out_dir`, repairing it; return the record."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -115,5 +143,7 @@ def fix_rtl(source_dir: Path, out_dir: Path) -> list[dict]:
             shutil.copyfile(path, out_dir / path.name)
         else:
             (out_dir / path.name).write_text(fixed)
-    check_self_contained({p.name: p.read_text() for p in sorted(out_dir.glob("*.v"))})
+    texts = {p.name: p.read_text() for p in sorted(out_dir.glob("*.v"))}
+    check_self_contained(texts)
+    check_blackbox_inputs(texts)
     return record

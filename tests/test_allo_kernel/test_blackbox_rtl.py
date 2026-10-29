@@ -48,6 +48,8 @@ def _to_int(x: np.float32, signed: bool) -> int:
 
 
 def expected(name: str, a: int, b: int) -> int:
+    if OPERATORS[name].tied:  # the one-input variant: its input is both operands
+        return expected(name.replace("_tied", ""), a, a)
     x, y = _f(a), _f(b)
     with np.errstate(all="ignore"):
         if name.startswith("hf_cmp_"):
@@ -76,7 +78,7 @@ def _testbench(n: int) -> str:
         bits = op.result_bits
         wires.append(f"  wire [{bits - 1}:0] r{i};")
         inputs = ".a(a), .b(b)" if len(op.args) == 2 else ".a(a)"
-        units.append(f"  {name}_rtl u{i}(.ap_clk(clk), .ap_rst(rst), .ap_ce(ce), {inputs}, .result(r{i}));")
+        units.append(f"  {name}_s0_rtl u{i}(.ap_clk(clk), .ap_rst(rst), .ap_ce(ce), {inputs}, .result(r{i}));")
         outs.append(f"r{i}")
     fmt = " ".join(["%h"] * len(outs))
     return f"""module tb;
@@ -137,12 +139,12 @@ def _expected(vectors, name):
 @pytest.mark.skipif(shutil.which("verilator") is None, reason="verilator not on PATH")
 def test_blackboxes_special_values_stalls_reset(tmp_path):
     rtl = tmp_path / "rtl"
-    build_blackboxes(rtl, NAMES)
+    build_blackboxes(rtl, {name: 1 for name in NAMES})
     vectors, pairs = _stimulus(np.random.default_rng(3))
     (tmp_path / "stimulus.hex").write_text(
         "\n".join(f"{(r << 65) | (c << 64) | (a << 32) | b:017x}" for r, c, a, b in vectors) + "\n")
     (tmp_path / "tb.sv").write_text(_testbench(len(vectors)))
-    sources = [str(rtl / "HardFloatNative.v")] + [str(rtl / f"{name}.v") for name in NAMES]
+    sources = [str(rtl / "HardFloatNative.v")] + [str(rtl / f"{name}_s0.v") for name in NAMES]
     subprocess.run(["verilator", "--binary", "-j", "8", "-Wno-fatal", "-Wno-lint", "-Wno-style",
                     "--top-module", "tb", "-Mdir", "obj", "tb.sv", *sources],
                    cwd=tmp_path, check=True, capture_output=True)
