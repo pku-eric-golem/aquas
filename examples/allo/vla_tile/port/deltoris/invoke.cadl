@@ -1,0 +1,10 @@
+    // core: engine_run as the Allo kernel deltoris_engine
+    let core_ctx: u32=deltoris__core__control[0];
+    let core_cont: u32=deltoris__core__control[1];
+    let core_n: u32=deltoris__core__batch_count[0];
+    invoke deltoris_engine(MAG = deltoris__core__magnitude[0 +: 16],
+                           NEG = deltoris__core__negative[0 +: 16],
+                           W = deltoris__core__weights[0 +: 64],
+                           PREV = deltoris__core__previous[0 +: 4],
+                           ACC = deltoris__core__accum[0 +: 64],
+                           ctx = core_ctx, cont = core_cont, n = core_n);

@@ -1,0 +1,8 @@
+    // core: engine_run as the Allo kernel ditpa_engine
+    let core_mode: u32=ditpa__core__mode[0];
+    let core_ctx: u32=ditpa__core__control[0];
+    let core_cont: u32=ditpa__core__control[1];
+    let core_n: u32=ditpa__core__batch_count[0];
+    invoke ditpa_engine(X = ditpa__core__x[0 +: 16], W = ditpa__core__weights[0 +: 64],
+                        P = ditpa__core__previous[0 +: 16], ACC = ditpa__core__accum[0 +: 256],
+                        mode = core_mode, ctx = core_ctx, cont = core_cont, n = core_n);

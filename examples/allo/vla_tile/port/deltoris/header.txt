@@ -1,0 +1,7 @@
+// vla_testbench Deltoris engine on route 1, built by tools/allo-gen.
+// Ported from accelerate/Deltoris.../test/src/compact_accelerator.cadl
+// (sha256 @SHA256@): statics and the write, run, read and reset
+// instructions are the original's, verbatim; only the core block of the run
+// instruction is replaced by an invoke of deltoris_engine, an Allo rewrite (one activation per cycle, not bit-serial)
+// of engine_run in 02_CADL硬件/bitserial_engine.cadl with the same results
+// (integer: exact).

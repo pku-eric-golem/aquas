@@ -1,0 +1,8 @@
+    // core: engine_run as the Allo kernel specvla_engine
+    let core_bits: u32=specvla__core__precision[0];
+    let core_ctx: u32=specvla__core__control[0];
+    let core_cont: u32=specvla__core__control[1];
+    let core_n: u32=specvla__core__batch_count[0];
+    invoke specvla_engine(X = specvla__core__x[0 +: 16], W = specvla__core__weights[0 +: 64],
+                          ACC = specvla__core__accum[0 +: 64], bits = core_bits, ctx = core_ctx,
+                          cont = core_cont, n = core_n);

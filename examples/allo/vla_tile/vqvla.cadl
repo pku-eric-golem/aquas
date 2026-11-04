@@ -1,0 +1,169 @@
+// vla_testbench VQVLA engine on route 1, built by tools/allo-gen.
+// Ported from accelerate/A Motion-Aware.../test/src/compact_accelerator.cadl
+// (sha256 fbc2b11abd8fc2eef22b72a4255e627c0a5da163020e7861dc80b8a84383c807): statics and the write, run, read and reset
+// instructions are the original's, verbatim; only the core block of the run
+// instruction is replaced by an invoke of vqvla_engine, an Allo rewrite
+// of engine_run in 02_CADL硬件/matrix_engine.cadl with the same results
+// (same order of float operations and cache accesses).
+static vqvla__core__control: [u32; 2];
+static vqvla__core__batch_count: [u32; 1];
+static vqvla__core__last_slot: [u32; 1];
+static vqvla__core__slot_valid: [u32; 16];
+static vqvla__core__accum: [f32; 64];
+static vqvla__core__x: [f32; 16];
+static vqvla__core__indices: [u32; 32];
+static vqvla__core__codebook: [f32; 16];
+static vqvla__core__dots: [f32; 64];
+static vqvla__core__cache_valid: [u32; 64];
+static vqvla__core__cache_tag: [u32; 64];
+static vqvla__core__epoch: [u32; 1];
+static vqvla__core__output: [f32; 4];
+static vqvla__sys_command: [u32; 1];
+static vqvla__sys_status: [u32; 4];
+
+allo vqvla_engine with s """
+import allo
+from allo.ir.types import float32, int32, uint32
+
+
+# engine_run of matrix_engine.cadl written as Allo would: banks outside,
+# outputs inside, so a sum is used again only every 4 iterations (past the
+# 3-cycle adder). Cache slots are bank * 16 + centroid * 2 + half, so every slot
+# is still visited in the original order (output o before o + 1 within a bank)
+# and hits, misses and results are the same. Products are formed and selected,
+# as HardFloat calls must not sit under a condition.
+def vqvla_engine(X: float32[16], IDX: uint32[32], CB: float32[16], DOTS: float32[64],
+                 VALID: uint32[64], TAG: uint32[64], ACC: float32[64], epoch: uint32,
+                 ctx: int32, cont: int32, n: int32):
+    acc: float32[4] = 0.0
+    for j in range(4):
+        if cont != 0:
+            acc[j] = ACC[ctx * 4 + j]
+    for t in range(16):
+        bank: int32 = t // 4
+        o: int32 = t % 4
+        first: uint32 = IDX[bank * 8 + o * 2]
+        second: uint32 = IDX[bank * 8 + o * 2 + 1]
+        merged: float32 = (X[bank * 4] + X[bank * 4 + 2]) * CB[first * 2] + (
+            X[bank * 4 + 1] + X[bank * 4 + 3]) * CB[first * 2 + 1]
+        slot0: int32 = bank * 16 + first * 2
+        slot1: int32 = bank * 16 + second * 2 + 1
+        fresh0: float32 = X[bank * 4] * CB[first * 2] + X[bank * 4 + 1] * CB[first * 2 + 1]
+        fresh1: float32 = X[bank * 4 + 2] * CB[second * 2] + X[bank * 4 + 3] * CB[second * 2 + 1]
+        miss0: int32 = 0
+        if VALID[slot0] == 0 or TAG[slot0] != epoch:
+            miss0 = 1
+        miss1: int32 = 0
+        if VALID[slot1] == 0 or TAG[slot1] != epoch:
+            miss1 = 1
+        d0: float32 = DOTS[slot0]
+        if miss0 != 0:
+            d0 = fresh0
+        d1: float32 = DOTS[slot1]
+        if miss1 != 0:
+            d1 = fresh1
+        zero: float32 = 0.0
+        value: float32 = (zero + d0) + d1
+        if first == second:
+            value = merged
+        nxt: float32 = acc[o] + value
+        if bank < n:
+            acc[o] = nxt
+            if first != second:
+                if miss0 != 0:
+                    DOTS[slot0] = fresh0
+                    TAG[slot0] = epoch
+                    VALID[slot0] = 1
+                if miss1 != 0:
+                    DOTS[slot1] = fresh1
+                    TAG[slot1] = epoch
+                    VALID[slot1] = 1
+    for j2 in range(4):
+        ACC[ctx * 4 + j2] = acc[j2]
+
+
+s = allo.customize(vqvla_engine)
+s.pipeline(s.get_loops("vqvla_engine")["S_t_1"]["t"])
+""";
+
+#[opcode(7'b0001011)]
+#[funct3(3'b111)]
+#[funct7(7'b0000000)]
+rtype vqvla_write(rs1: u5, rs2: u5, rd: u5) {
+    let address: u32=_irf[rs1];
+    let value: u32=_irf[rs2];
+    let accepted: u32=0;
+    if (address >= 0) && (address < 16) { if bitcast<u32>(vqvla__core__x[address-0]) != _irf[rs2] { if vqvla__core__epoch[0] == 4294967295 { with z:u32=(0,z_) do { vqvla__core__cache_valid[z]=0; let z_:u32=z+1; } while(z_ < 64); vqvla__core__epoch[0]=0; } else { vqvla__core__epoch[0]=vqvla__core__epoch[0]+1; } } vqvla__core__x[address-0]=bitcast<f32>(value); accepted=1; }
+    if (address >= 16) && (address < 20) { vqvla__core__indices[(address-16)*8+0]=(value >> 0) & 7; accepted=1; }
+    if (address >= 16) && (address < 20) { vqvla__core__indices[(address-16)*8+1]=(value >> 3) & 7; accepted=1; }
+    if (address >= 16) && (address < 20) { vqvla__core__indices[(address-16)*8+2]=(value >> 6) & 7; accepted=1; }
+    if (address >= 16) && (address < 20) { vqvla__core__indices[(address-16)*8+3]=(value >> 9) & 7; accepted=1; }
+    if (address >= 16) && (address < 20) { vqvla__core__indices[(address-16)*8+4]=(value >> 12) & 7; accepted=1; }
+    if (address >= 16) && (address < 20) { vqvla__core__indices[(address-16)*8+5]=(value >> 15) & 7; accepted=1; }
+    if (address >= 16) && (address < 20) { vqvla__core__indices[(address-16)*8+6]=(value >> 18) & 7; accepted=1; }
+    if (address >= 16) && (address < 20) { vqvla__core__indices[(address-16)*8+7]=(value >> 21) & 7; accepted=1; }
+    if (address >= 20) && (address < 36) { if bitcast<u32>(vqvla__core__codebook[address-20]) != _irf[rs2] { if vqvla__core__epoch[0] == 4294967295 { with z:u32=(0,z_) do { vqvla__core__cache_valid[z]=0; let z_:u32=z+1; } while(z_ < 64); vqvla__core__epoch[0]=0; } else { vqvla__core__epoch[0]=vqvla__core__epoch[0]+1; } } vqvla__core__codebook[address-20]=bitcast<f32>(value); accepted=1; }
+    _irf[rd]=if accepted != 0 {0} else {1};
+}
+#[opcode(7'b0001011)]
+#[funct3(3'b111)]
+#[funct7(7'b0000001)]
+rtype vqvla_run(rs1: u5, rs2: u5, rd: u5) {
+    vqvla__sys_command[0]=_irf[rs1];
+    vqvla__sys_status[0]=1;
+    vqvla__sys_status[1]=0;
+    vqvla__core__control[0]=_irf[rs1] & 15;
+    vqvla__core__control[1]=(_irf[rs1] >> 4) & 1;
+    vqvla__core__batch_count[0]=_irf[rs2];
+    let ctx:u32=vqvla__core__control[0];
+    if (ctx < 16) && (vqvla__core__control[1] < 2) && (vqvla__core__batch_count[0] > 0) && (vqvla__core__batch_count[0] <= 4) && (vqvla__sys_command[0] < 32) {
+     if (vqvla__core__control[1] == 0) || ((vqvla__core__slot_valid[ctx] != 0)) {
+    // core: engine_run as the Allo kernel vqvla_engine
+    let core_epoch: u32=vqvla__core__epoch[0];
+    let core_ctx: u32=vqvla__core__control[0];
+    let core_cont: u32=vqvla__core__control[1];
+    let core_n: u32=vqvla__core__batch_count[0];
+    invoke vqvla_engine(X = vqvla__core__x[0 +: 16], IDX = vqvla__core__indices[0 +: 32],
+                        CB = vqvla__core__codebook[0 +: 16], DOTS = vqvla__core__dots[0 +: 64],
+                        VALID = vqvla__core__cache_valid[0 +: 64],
+                        TAG = vqvla__core__cache_tag[0 +: 64], ACC = vqvla__core__accum[0 +: 64],
+                        epoch = core_epoch, ctx = core_ctx, cont = core_cont, n = core_n);
+     vqvla__core__slot_valid[ctx]=1;vqvla__core__last_slot[0]=ctx;
+
+     } else {vqvla__sys_status[1]=2;}
+    } else {vqvla__sys_status[1]=1;}
+    _irf[rd]=vqvla__sys_status[1];
+}
+#[opcode(7'b0001011)]
+#[funct3(3'b111)]
+#[funct7(7'b0000010)]
+rtype vqvla_read(rs1: u5, rs2: u5, rd: u5) {
+    let address: u32=_irf[rs1];
+    let bits: u32=0;
+    if (address >= 0) && (address < 16) { bits=bitcast<u32>(vqvla__core__x[address-0]); }
+    if (address >= 16) && (address < 20) { bits=0; let packed_core__indices_0: i32=vqvla__core__indices[(address-16)*8+0]; bits=bits | ((bitcast<u32>(packed_core__indices_0) & 7) << 0); let packed_core__indices_1: i32=vqvla__core__indices[(address-16)*8+1]; bits=bits | ((bitcast<u32>(packed_core__indices_1) & 7) << 3); let packed_core__indices_2: i32=vqvla__core__indices[(address-16)*8+2]; bits=bits | ((bitcast<u32>(packed_core__indices_2) & 7) << 6); let packed_core__indices_3: i32=vqvla__core__indices[(address-16)*8+3]; bits=bits | ((bitcast<u32>(packed_core__indices_3) & 7) << 9); let packed_core__indices_4: i32=vqvla__core__indices[(address-16)*8+4]; bits=bits | ((bitcast<u32>(packed_core__indices_4) & 7) << 12); let packed_core__indices_5: i32=vqvla__core__indices[(address-16)*8+5]; bits=bits | ((bitcast<u32>(packed_core__indices_5) & 7) << 15); let packed_core__indices_6: i32=vqvla__core__indices[(address-16)*8+6]; bits=bits | ((bitcast<u32>(packed_core__indices_6) & 7) << 18); let packed_core__indices_7: i32=vqvla__core__indices[(address-16)*8+7]; bits=bits | ((bitcast<u32>(packed_core__indices_7) & 7) << 21); }
+    if (address >= 20) && (address < 36) { bits=bitcast<u32>(vqvla__core__codebook[address-20]); }
+    if (address >= 36) && (address < 40) { bits=bitcast<u32>(vqvla__core__accum[vqvla__core__last_slot[0]*4+(address-36)]); }
+    _irf[rd]=bits;
+}
+#[opcode(7'b0001011)]
+#[funct3(3'b111)]
+#[funct7(7'b0000011)]
+rtype vqvla_reset(rs1: u5, rs2: u5, rd: u5) {
+    with clear0: u32=(0,clear0_) do { vqvla__core__control[clear0]=0; let clear0_: u32=clear0+1; } while (clear0_ < 2);
+    with clear1: u32=(0,clear1_) do { vqvla__core__batch_count[clear1]=0; let clear1_: u32=clear1+1; } while (clear1_ < 1);
+    with clear2: u32=(0,clear2_) do { vqvla__core__last_slot[clear2]=0; let clear2_: u32=clear2+1; } while (clear2_ < 1);
+    with clear3: u32=(0,clear3_) do { vqvla__core__slot_valid[clear3]=0; let clear3_: u32=clear3+1; } while (clear3_ < 16);
+    with clear4: u32=(0,clear4_) do { vqvla__core__accum[clear4]=0.0; let clear4_: u32=clear4+1; } while (clear4_ < 64);
+    with clear5: u32=(0,clear5_) do { vqvla__core__x[clear5]=0.0; let clear5_: u32=clear5+1; } while (clear5_ < 16);
+    with clear6: u32=(0,clear6_) do { vqvla__core__indices[clear6]=0; let clear6_: u32=clear6+1; } while (clear6_ < 32);
+    with clear7: u32=(0,clear7_) do { vqvla__core__codebook[clear7]=0.0; let clear7_: u32=clear7+1; } while (clear7_ < 16);
+    with clear8: u32=(0,clear8_) do { vqvla__core__dots[clear8]=0.0; let clear8_: u32=clear8+1; } while (clear8_ < 64);
+    with clear9: u32=(0,clear9_) do { vqvla__core__cache_valid[clear9]=0; let clear9_: u32=clear9+1; } while (clear9_ < 64);
+    with clear10: u32=(0,clear10_) do { vqvla__core__cache_tag[clear10]=0; let clear10_: u32=clear10+1; } while (clear10_ < 64);
+    with clear11: u32=(0,clear11_) do { vqvla__core__epoch[clear11]=0; let clear11_: u32=clear11+1; } while (clear11_ < 1);
+    with clear12: u32=(0,clear12_) do { vqvla__core__output[clear12]=0.0; let clear12_: u32=clear12+1; } while (clear12_ < 4);
+    with clear13: u32=(0,clear13_) do { vqvla__sys_command[clear13]=0; let clear13_: u32=clear13+1; } while (clear13_ < 1);
+    with clear14: u32=(0,clear14_) do { vqvla__sys_status[clear14]=0; let clear14_: u32=clear14+1; } while (clear14_ < 4);
+    _irf[rd]=0;
+}

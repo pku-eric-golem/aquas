@@ -1,0 +1,31 @@
+allo deltoris_engine with s """
+import allo
+from allo.ir.types import int8, int32, uint32
+
+
+# engine_run of bitserial_engine.cadl written as Allo would: Y[j] += +-|dX[k]| * W[k][j].
+# The original adds W << b for every set bit b of the 8-bit magnitude, which is
+# exactly the product: write masks magnitudes to 8 bits, and both wrap at 32 bits.
+def deltoris_engine(MAG: uint32[16], NEG: uint32[16], W: int8[64], PREV: int32[4],
+                    ACC: int32[64], ctx: int32, cont: int32, n: int32):
+    acc4: int32[4] = 0
+    for j in range(4):
+        acc4[j] = PREV[j]
+        if cont != 0:
+            acc4[j] = ACC[ctx * 4 + j]
+    for i in range(16):  # bank i // 4, activation i % 4
+        if i < n * 4:
+            m: int32 = MAG[i]
+            if NEG[i] != 0:
+                m = -m
+            for j2 in range(4):
+                w: int32 = W[i * 4 + j2]
+                acc4[j2] = acc4[j2] + m * w
+    for j3 in range(4):
+        ACC[ctx * 4 + j3] = acc4[j3]
+
+
+s = allo.customize(deltoris_engine)
+s.partition("deltoris_engine:acc4", dim=1)  # the four sums in registers
+s.pipeline(s.get_loops("deltoris_engine")["S_i_1"]["i"])  # one activation per cycle
+""";

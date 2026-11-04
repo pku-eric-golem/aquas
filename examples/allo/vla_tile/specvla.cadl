@@ -1,0 +1,126 @@
+// vla_testbench SpecVLA engine on route 1, built by tools/allo-gen.
+// Ported from accelerate/Algorithm-Architecture.../test/src/compact_accelerator.cadl
+// (sha256 589da0ff541f3756eec23679f35cf27286c28f2bdb29316e899467434ba5eefc): statics and the write, run, read and reset
+// instructions are the original's, verbatim; only the core block of the run
+// instruction is replaced by an invoke of specvla_engine, an Allo rewrite
+// of engine_run in 02_CADL硬件/simd_engine.cadl with the same results
+// (same order of float operations, exact integers).
+static specvla__core__control: [u32; 2];
+static specvla__core__batch_count: [u32; 1];
+static specvla__core__last_slot: [u32; 1];
+static specvla__core__slot_valid: [u32; 16];
+static specvla__core__accum: [i32; 64];
+static specvla__core__x: [i8; 16];
+static specvla__core__weights: [i16; 64];
+static specvla__core__precision: [u32; 1];
+static specvla__core__output: [i32; 4];
+static specvla__sys_command: [u32; 1];
+static specvla__sys_status: [u32; 4];
+
+allo specvla_engine with s """
+import allo
+from allo.ir.types import int8, int16, int32
+
+
+# engine_run of simd_engine.cadl written as Allo would: out[o] += v(x) * W.
+# INT8 in the original is two phases, low 4 bits unsigned plus 16 x high 4 bits
+# signed, which is exactly x * w (and so is its 32-bit wrap); INT4 uses the
+# signed low 4 bits; any other precision is one phase on the unsigned low 4 bits.
+def specvla_engine(X: int8[16], W: int16[64], ACC: int32[64], bits: int32, ctx: int32,
+                   cont: int32, n: int32):
+    acc4: int32[4] = 0
+    for j in range(4):
+        if cont != 0:
+            acc4[j] = ACC[ctx * 4 + j]
+    for i in range(16):  # bank i // 4, activation i % 4
+        if i < n * 4:
+            a: int32 = X[i]
+            v: int32 = a & 15
+            if bits == 4:
+                v = ((a & 15) ^ 8) - 8
+            if bits == 8:
+                v = a
+            for o in range(4):
+                w: int32 = W[i * 4 + o]
+                acc4[o] = acc4[o] + v * w
+    for j3 in range(4):
+        ACC[ctx * 4 + j3] = acc4[j3]
+
+
+s = allo.customize(specvla_engine)
+s.partition("specvla_engine:acc4", dim=1)  # the four sums in registers
+s.pipeline(s.get_loops("specvla_engine")["S_i_1"]["i"])  # one activation per cycle
+""";
+
+#[opcode(7'b1011011)]
+#[funct3(3'b111)]
+#[funct7(7'b0000000)]
+rtype specvla_write(rs1: u5, rs2: u5, rd: u5) {
+    let address: u32=_irf[rs1];
+    let value: u32=_irf[rs2];
+    let accepted: u32=0;
+    if (address >= 0) && (address < 4) { specvla__core__x[(address-0)*4+0]=(value >> 0) & 255; accepted=1; }
+    if (address >= 0) && (address < 4) { specvla__core__x[(address-0)*4+1]=(value >> 8) & 255; accepted=1; }
+    if (address >= 0) && (address < 4) { specvla__core__x[(address-0)*4+2]=(value >> 16) & 255; accepted=1; }
+    if (address >= 0) && (address < 4) { specvla__core__x[(address-0)*4+3]=(value >> 24) & 255; accepted=1; }
+    if (address >= 4) && (address < 36) { specvla__core__weights[(address-4)*2+0]=(value >> 0) & 65535; accepted=1; }
+    if (address >= 4) && (address < 36) { specvla__core__weights[(address-4)*2+1]=(value >> 16) & 65535; accepted=1; }
+    if (address >= 36) && (address < 37) {  specvla__core__precision[address-36]=value; accepted=1; }
+    _irf[rd]=if accepted != 0 {0} else {1};
+}
+#[opcode(7'b1011011)]
+#[funct3(3'b111)]
+#[funct7(7'b0000001)]
+rtype specvla_run(rs1: u5, rs2: u5, rd: u5) {
+    specvla__sys_command[0]=_irf[rs1];
+    specvla__sys_status[0]=1;
+    specvla__sys_status[1]=0;
+    specvla__core__control[0]=_irf[rs1] & 15;
+    specvla__core__control[1]=(_irf[rs1] >> 4) & 1;
+    specvla__core__batch_count[0]=_irf[rs2];
+    let ctx:u32=specvla__core__control[0];
+    if (ctx < 16) && (specvla__core__control[1] < 2) && (specvla__core__batch_count[0] > 0) && (specvla__core__batch_count[0] <= 4) && (specvla__sys_command[0] < 32) {
+     if (specvla__core__control[1] == 0) || ((specvla__core__slot_valid[ctx] != 0)) {
+    // core: engine_run as the Allo kernel specvla_engine
+    let core_bits: u32=specvla__core__precision[0];
+    let core_ctx: u32=specvla__core__control[0];
+    let core_cont: u32=specvla__core__control[1];
+    let core_n: u32=specvla__core__batch_count[0];
+    invoke specvla_engine(X = specvla__core__x[0 +: 16], W = specvla__core__weights[0 +: 64],
+                          ACC = specvla__core__accum[0 +: 64], bits = core_bits, ctx = core_ctx,
+                          cont = core_cont, n = core_n);
+     specvla__core__slot_valid[ctx]=1;specvla__core__last_slot[0]=ctx;
+
+     } else {specvla__sys_status[1]=2;}
+    } else {specvla__sys_status[1]=1;}
+    _irf[rd]=specvla__sys_status[1];
+}
+#[opcode(7'b1011011)]
+#[funct3(3'b111)]
+#[funct7(7'b0000010)]
+rtype specvla_read(rs1: u5, rs2: u5, rd: u5) {
+    let address: u32=_irf[rs1];
+    let bits: u32=0;
+    if (address >= 0) && (address < 4) { bits=0; let packed_core__x_0: i32=specvla__core__x[(address-0)*4+0]; bits=bits | ((bitcast<u32>(packed_core__x_0) & 255) << 0); let packed_core__x_1: i32=specvla__core__x[(address-0)*4+1]; bits=bits | ((bitcast<u32>(packed_core__x_1) & 255) << 8); let packed_core__x_2: i32=specvla__core__x[(address-0)*4+2]; bits=bits | ((bitcast<u32>(packed_core__x_2) & 255) << 16); let packed_core__x_3: i32=specvla__core__x[(address-0)*4+3]; bits=bits | ((bitcast<u32>(packed_core__x_3) & 255) << 24); }
+    if (address >= 4) && (address < 36) { bits=0; let packed_core__weights_0: i32=specvla__core__weights[(address-4)*2+0]; bits=bits | ((bitcast<u32>(packed_core__weights_0) & 65535) << 0); let packed_core__weights_1: i32=specvla__core__weights[(address-4)*2+1]; bits=bits | ((bitcast<u32>(packed_core__weights_1) & 65535) << 16); }
+    if (address >= 36) && (address < 37) { bits=specvla__core__precision[address-36]; }
+    if (address >= 37) && (address < 41) { let extended: i32=specvla__core__accum[specvla__core__last_slot[0]*4+(address-37)]; bits=bitcast<u32>(extended); }
+    _irf[rd]=bits;
+}
+#[opcode(7'b1011011)]
+#[funct3(3'b111)]
+#[funct7(7'b0000011)]
+rtype specvla_reset(rs1: u5, rs2: u5, rd: u5) {
+    with clear0: u32=(0,clear0_) do { specvla__core__control[clear0]=0; let clear0_: u32=clear0+1; } while (clear0_ < 2);
+    with clear1: u32=(0,clear1_) do { specvla__core__batch_count[clear1]=0; let clear1_: u32=clear1+1; } while (clear1_ < 1);
+    with clear2: u32=(0,clear2_) do { specvla__core__last_slot[clear2]=0; let clear2_: u32=clear2+1; } while (clear2_ < 1);
+    with clear3: u32=(0,clear3_) do { specvla__core__slot_valid[clear3]=0; let clear3_: u32=clear3+1; } while (clear3_ < 16);
+    with clear4: u32=(0,clear4_) do { specvla__core__accum[clear4]=0; let clear4_: u32=clear4+1; } while (clear4_ < 64);
+    with clear5: u32=(0,clear5_) do { specvla__core__x[clear5]=0; let clear5_: u32=clear5+1; } while (clear5_ < 16);
+    with clear6: u32=(0,clear6_) do { specvla__core__weights[clear6]=0; let clear6_: u32=clear6+1; } while (clear6_ < 64);
+    with clear7: u32=(0,clear7_) do { specvla__core__precision[clear7]=0; let clear7_: u32=clear7+1; } while (clear7_ < 1);
+    with clear8: u32=(0,clear8_) do { specvla__core__output[clear8]=0; let clear8_: u32=clear8+1; } while (clear8_ < 4);
+    with clear9: u32=(0,clear9_) do { specvla__sys_command[clear9]=0; let clear9_: u32=clear9+1; } while (clear9_ < 1);
+    with clear10: u32=(0,clear10_) do { specvla__sys_status[clear10]=0; let clear10_: u32=clear10+1; } while (clear10_ < 4);
+    _irf[rd]=0;
+}

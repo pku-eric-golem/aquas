@@ -1,0 +1,64 @@
+allo vqvla_engine with s """
+import allo
+from allo.ir.types import float32, int32, uint32
+
+
+# engine_run of matrix_engine.cadl written as Allo would: banks outside,
+# outputs inside, so a sum is used again only every 4 iterations (past the
+# 3-cycle adder). Cache slots are bank * 16 + centroid * 2 + half, so every slot
+# is still visited in the original order (output o before o + 1 within a bank)
+# and hits, misses and results are the same. Products are formed and selected,
+# as HardFloat calls must not sit under a condition.
+def vqvla_engine(X: float32[16], IDX: uint32[32], CB: float32[16], DOTS: float32[64],
+                 VALID: uint32[64], TAG: uint32[64], ACC: float32[64], epoch: uint32,
+                 ctx: int32, cont: int32, n: int32):
+    acc: float32[4] = 0.0
+    for j in range(4):
+        if cont != 0:
+            acc[j] = ACC[ctx * 4 + j]
+    for t in range(16):
+        bank: int32 = t // 4
+        o: int32 = t % 4
+        first: uint32 = IDX[bank * 8 + o * 2]
+        second: uint32 = IDX[bank * 8 + o * 2 + 1]
+        merged: float32 = (X[bank * 4] + X[bank * 4 + 2]) * CB[first * 2] + (
+            X[bank * 4 + 1] + X[bank * 4 + 3]) * CB[first * 2 + 1]
+        slot0: int32 = bank * 16 + first * 2
+        slot1: int32 = bank * 16 + second * 2 + 1
+        fresh0: float32 = X[bank * 4] * CB[first * 2] + X[bank * 4 + 1] * CB[first * 2 + 1]
+        fresh1: float32 = X[bank * 4 + 2] * CB[second * 2] + X[bank * 4 + 3] * CB[second * 2 + 1]
+        miss0: int32 = 0
+        if VALID[slot0] == 0 or TAG[slot0] != epoch:
+            miss0 = 1
+        miss1: int32 = 0
+        if VALID[slot1] == 0 or TAG[slot1] != epoch:
+            miss1 = 1
+        d0: float32 = DOTS[slot0]
+        if miss0 != 0:
+            d0 = fresh0
+        d1: float32 = DOTS[slot1]
+        if miss1 != 0:
+            d1 = fresh1
+        zero: float32 = 0.0
+        value: float32 = (zero + d0) + d1
+        if first == second:
+            value = merged
+        nxt: float32 = acc[o] + value
+        if bank < n:
+            acc[o] = nxt
+            if first != second:
+                if miss0 != 0:
+                    DOTS[slot0] = fresh0
+                    TAG[slot0] = epoch
+                    VALID[slot0] = 1
+                if miss1 != 0:
+                    DOTS[slot1] = fresh1
+                    TAG[slot1] = epoch
+                    VALID[slot1] = 1
+    for j2 in range(4):
+        ACC[ctx * 4 + j2] = acc[j2]
+
+
+s = allo.customize(vqvla_engine)
+s.pipeline(s.get_loops("vqvla_engine")["S_t_1"]["t"])
+""";

@@ -1,0 +1,10 @@
+    // core: engine_run as the Allo kernel vqvla_engine
+    let core_epoch: u32=vqvla__core__epoch[0];
+    let core_ctx: u32=vqvla__core__control[0];
+    let core_cont: u32=vqvla__core__control[1];
+    let core_n: u32=vqvla__core__batch_count[0];
+    invoke vqvla_engine(X = vqvla__core__x[0 +: 16], IDX = vqvla__core__indices[0 +: 32],
+                        CB = vqvla__core__codebook[0 +: 16], DOTS = vqvla__core__dots[0 +: 64],
+                        VALID = vqvla__core__cache_valid[0 +: 64],
+                        TAG = vqvla__core__cache_tag[0 +: 64], ACC = vqvla__core__accum[0 +: 64],
+                        epoch = core_epoch, ctx = core_ctx, cont = core_cont, n = core_n);

@@ -1,0 +1,59 @@
+allo ditpa_engine with s """
+import allo
+from allo.ir.types import float32, int32
+
+
+# engine_run of reconfigurable_engine.cadl written as Allo would. Each output
+# keeps the original order (seed, then bank 0, 1, 2, 3; inner products as
+# (x0*w0 + x1*w1) + (x2*w2 + x3*w3)), so results are bit for bit the same. The
+# bank and output loops are one loop with the output varying fastest: a sum is
+# used again only 4 (inner) or 16 (outer) iterations later, past the 3-cycle
+# HardFloat adder, so the pipelined loop can issue every cycle.
+def inner(X: float32[16], W: float32[64], P: float32[16], ACC: float32[256],
+          ctx: int32, cont: int32, n: int32):
+    acc: float32[4] = 0.0
+    for o in range(4):
+        acc[o] = P[o]
+        if cont != 0:
+            acc[o] = ACC[ctx * 16 + o]
+    for t in range(16):
+        b: int32 = t // 4
+        c: int32 = t % 4
+        dot: float32 = (X[b * 4] * W[b * 16 + c] + X[b * 4 + 1] * W[b * 16 + 4 + c]) + (
+            X[b * 4 + 2] * W[b * 16 + 8 + c] + X[b * 4 + 3] * W[b * 16 + 12 + c])
+        nxt: float32 = acc[c] + dot
+        if b < n:
+            acc[c] = nxt
+    for o2 in range(4):
+        ACC[ctx * 16 + o2] = acc[o2]
+
+
+def outer(X: float32[16], W: float32[64], P: float32[16], ACC: float32[256],
+          ctx: int32, cont: int32, n: int32):
+    acc: float32[16] = 0.0
+    for e in range(16):
+        acc[e] = P[e]
+        if cont != 0:
+            acc[e] = ACC[ctx * 16 + e]
+    for t in range(64):
+        q: int32 = t // 16
+        e2: int32 = t % 16
+        nxt: float32 = acc[e2] + X[q * 4 + e2 // 4] * W[q * 16 + e2 % 4]
+        if q < n:
+            acc[e2] = nxt
+    for e3 in range(16):
+        ACC[ctx * 16 + e3] = acc[e3]
+
+
+def ditpa_engine(X: float32[16], W: float32[64], P: float32[16], ACC: float32[256],
+                 mode: int32, ctx: int32, cont: int32, n: int32):
+    if mode == 0:
+        inner(X, W, P, ACC, ctx, cont, n)
+    else:
+        outer(X, W, P, ACC, ctx, cont, n)
+
+
+s = allo.customize(ditpa_engine)
+s.pipeline(s.get_loops("inner")["S_t_1"]["t"])
+s.pipeline(s.get_loops("outer")["S_t_1"]["t"])
+""";
