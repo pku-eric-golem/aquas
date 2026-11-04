@@ -63,8 +63,8 @@ class Scenario:
         self.loads.append((name, funct, self.next_in, spm_offset, np.asarray(data, np.int32)))
         self.next_in += data.size * 4
 
-    def invoke(self, name, rs1, rs2, rd=0):
-        self.invokes.append((name, rs1, rs2, _u32(rd)))
+    def invoke(self, name, rs1, rs2, rd=0, funct=0):
+        self.invokes.append((name, funct, rs1, rs2, _u32(rd)))
 
     def store(self, name, funct, spm_offset, want):
         self.stores.append((name, funct, self.next_out, spm_offset, np.asarray(want, np.int32)))
@@ -73,8 +73,8 @@ class Scenario:
     def commands(self):
         for name, funct, dram, spm, _ in self.loads:
             yield name, LOAD, funct, dram, spm, 0
-        for name, rs1, rs2, rd in self.invokes:
-            yield name, COMPUTE, 0, rs1, rs2, rd
+        for name, funct, rs1, rs2, rd in self.invokes:
+            yield name, COMPUTE, funct, rs1, rs2, rd
         for name, funct, dram, spm, _ in self.stores:
             yield name, STORE, funct, dram, spm, 0
 
