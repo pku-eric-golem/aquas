@@ -7,8 +7,16 @@ statement sees earlier `let` values by substitution (cast to the declared
 width); across states it reads their registers. Each do-while has a head
 state, so an iteration costs one extra cycle.
 
-An `if` statement branches the edge; both arms may wait or answer, and the
-arms that fall through meet in a join state (one cycle). An SPM element read
+An `if` whose arms only assign variables and SPM elements from values at hand
+(no SPM or `_mem` reads; nested such `if`s) is predicated: it costs no cycle of
+its own. Each arm gets a 1-bit register holding its full condition, set on the
+edge where the `if` starts; the arm's assignments, SPM writes and runtime
+checks are guarded by the condition on that edge and by the register after a
+wait (a second write to one SPM waits a cycle), and later statements see a
+variable as `cond ? new : old`. Arms that read keep the branch, so only the
+taken arm pays for its reads. Any other `if` branches the edge; both arms may
+wait or answer, and the arms that fall through meet in a join state (one
+cycle). An SPM element read
 `spm[i]` costs a state of its own: the value is registered first, then the
 statement that uses it runs. `spm[i] = v` drives the SPM's FSM write port
 (combinational `spm_<name>_fsm_*`, written by the SPM's write block in spm.py)
@@ -204,15 +212,28 @@ class FlowBuilder:
         self.done = False
         self.loaded: dict[int, str] = {}  # id(SPM element read) -> register holding it
         self.written: set[str] = set()  # SPMs written on the current transition
+        self.cycle = 0  # bumped when a wait starts a new transition
+        self.preds: list[tuple[str, str, int]] = []  # predicated if arms: (cond, register, cycle)
 
     # Interface for the invoke (C) and DMA (D) handlers.
 
+    def pred(self) -> str | None:
+        """The condition of the innermost predicated arm, as valid on the current edge."""
+        if not self.preds:
+            return None
+        cond, reg, cycle = self.preds[-1]
+        return cond if cycle == self.cycle else reg
+
+    def _guard(self, line: str) -> str:
+        pred = self.pred()
+        return line if pred is None else f"if ({pred}) {line}"
+
     def action(self, line: str) -> None:
-        self.edge.actions.append(line)
+        self.edge.actions.append(self._guard(line))
 
     def port(self, line: str) -> None:
         """A combinational assignment, made while the current edge is taken."""
-        self.edge.ports.append(line)
+        self.edge.ports.append(self._guard(line))
 
     def wait(self, tag: str, cond: str) -> State:
         """Close the current edge into a new state left when `cond` holds."""
@@ -222,6 +243,7 @@ class FlowBuilder:
         self._goto(state)
         self.edge, self.env, self.on_fire = state.exit, {}, False
         self.written = set()
+        self.cycle += 1
         return state
 
     def wait_unless(self, tag: str, cond: str) -> State:
@@ -236,6 +258,7 @@ class FlowBuilder:
         self._goto(Branch(cond, rest, Edge(target=state)))
         self.edge, self.env, self.on_fire = rest, {}, False
         self.written = set()
+        self.cycle += 1
         return state
 
     def drive(self, signal: str, state: State) -> None:
@@ -324,6 +347,8 @@ class FlowBuilder:
         bad = Edge([f"error_status <= error_status | 32'd{ERRORS[cause]};",
                     "response_data <= 32'd0;"], self.fsm.response)
         ok = Edge()
+        if (pred := self.pred()) is not None:
+            cond = f"({pred}) && ({cond})"
         self._goto(Branch(cond, bad, ok))
         self.edge = ok
 
@@ -498,7 +523,11 @@ class FlowBuilder:
             raise ValueError(f"{self.flow.name}: assignment to undeclared {name}")
         var = self.scope[name]
         self.action(f"{var.reg} <= {var.cast(value)};")
-        self.env[name] = var.cast(value)
+        if (pred := self.pred()) is not None:
+            old = self.env.get(name, var.reg)
+            self.env[name] = var.cast(f"(({pred}) ? ({var.cast(value)}) : ({old}))")
+        else:
+            self.env[name] = var.cast(value)
 
     def _respond(self, s: ast.AssignStmt) -> None:
         if s.lhs.indices[0].name != "rd":
@@ -536,9 +565,60 @@ class FlowBuilder:
         self.env[f"#csr{name}"] = value
         self.written.add(f"csr:{name}")
 
+    def _predicable(self, body: list) -> bool:
+        """Whether `body` only assigns variables and SPM elements, in nested such ifs."""
+        def mem_free(e) -> bool:
+            if isinstance(e, (list, tuple)):
+                return all(mem_free(c) for c in e)
+            if not isinstance(e, ast.Expr):
+                return True
+            if self._cpu(e) or self._spm(e):
+                return False  # a read would wait in every arm; branching waits only in one
+            return all(mem_free(c) for c in vars(e).values()
+                       if isinstance(c, (ast.Expr, list, tuple)))
+        for st in body:
+            if isinstance(st, ast.IfStmt):
+                if not (mem_free(st.condition) and self._predicable(st.then_body)
+                        and self._predicable(st.else_body or [])):
+                    return False
+            elif isinstance(st, ast.AssignStmt) and not _is_dma(st):
+                if not (isinstance(st.lhs, ast.IdentExpr) or self._spm(st.lhs)):
+                    return False  # _irf[rd], _csr and _mem writes keep the branch
+                index = st.lhs.indices if self._spm(st.lhs) else []
+                if not (mem_free(st.rhs) and mem_free(index)):
+                    return False
+            else:
+                return False
+        return True
+
+    def _predicated_if(self, s: ast.IfStmt, cond: str) -> None:
+        outer = self.pred()
+        arms = []
+        for c in (cond, f"!({cond})"):
+            full = c if outer is None else f"({outer}) && ({c})"
+            self.count += 1
+            reg = self.declare(f"pred{self.count}", 1).reg
+            self.edge.actions.append(f"{reg} <= {full};")  # unguarded: holds the full condition
+            arms.append((full, reg, self.cycle))
+        scope, start, written = dict(self.scope), self.cycle, set(self.written)
+        arm_writes = set()
+        for body, entry in zip((s.then_body, s.else_body or []), arms):
+            if self.cycle == start:
+                self.written = set(written)  # arms are exclusive: each may use the write ports
+            self.preds.append(entry)
+            self.run(body)
+            self.preds.pop()
+            if self.cycle == start:
+                arm_writes |= self.written
+        if self.cycle == start:
+            self.written = arm_writes
+        self.scope = scope
+
     def _if(self, s: ast.IfStmt) -> None:
         self.load(s.condition)
         cond = self.expr(s.condition)
+        if self._predicable(s.then_body) and self._predicable(s.else_body or []):
+            return self._predicated_if(s, cond)
         arms = (Edge(), Edge())
         self._goto(Branch(cond, *arms))
         scope, env, on_fire, written = dict(self.scope), dict(self.env), self.on_fire, self.written

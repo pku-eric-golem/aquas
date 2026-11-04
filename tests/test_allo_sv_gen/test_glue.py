@@ -163,7 +163,10 @@ def test_join_and_spm_read_states():
     names = [s.name for s in fsm.states]
     assert sum(n.startswith("S_add2_spm_read") for n in names) == 2
     assert sum(n.startswith("S_indirect_spm_read") for n in names) == 2  # inner index first
-    assert sum(n.startswith("S_nested_join") for n in names) == 2
+    # nested's ifs only assign: predicated, no join; sumif's arm loops: a join.
+    assert not any(n.startswith("S_nested_join") for n in names)
+    assert sum(n.startswith("S_sumif_join") for n in names) == 1
+    assert {"nested__pred1", "nested__pred2"} <= set(fsm.regs)
     assert not any(n.startswith("S_absval_join") for n in names)  # both arms answer
     assert [(v.reg, init) for v, init in fsm.persistent] == [("static_count", 5), ("static_last", -7)]
 
