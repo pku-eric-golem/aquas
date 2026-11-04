@@ -4,6 +4,12 @@ Each static array gets its own byte-address region of equal power-of-two size,
 so the DMA side selects a scratchpad with a bit slice of the address (GEMM:
 three 512 KiB regions, select = addr[20:19], element = addr[18:2]).
 
+Elements are 8, 16 or 32 bits wide, the width of the static's element type.
+Only 32-bit SPMs are on the DMA side: a beat is cut into 32-bit lanes and DMA
+byte addresses are counted in 32-bit elements, so `_mem` transfers to a
+narrower SPM are rejected and the burst port leaves narrow SPMs out. The FSM
+(element reads and writes) and invoke ports use each SPM's own width.
+
 A static with CADL partition attributes on its one dimension
 (#[partition_dim_array([0])], #[partition_factor_array([f])],
 #[partition_cyclic_array([1])] for cyclic or [0] for block) is stored as f
@@ -23,6 +29,10 @@ from dataclasses import dataclass
 from .. import cadl_ast as ast
 
 
+SPM_ELEM_BITS = (8, 16, 32)
+DMA_ELEM_BITS = 32
+
+
 @dataclass
 class Spm:
     name: str
@@ -33,6 +43,11 @@ class Spm:
     signed: bool = False
     banks: int = 1
     cyclic: bool = True  # cyclic or block banks; irrelevant for one bank
+
+    @property
+    def dma(self) -> bool:
+        """Whether DMA transfers and the burst port reach this SPM."""
+        return self.elem_bits == DMA_ELEM_BITS
 
     @property
     def signal(self) -> str:
@@ -79,7 +94,12 @@ class SpmLayout:
 
     @property
     def elem_bytes(self) -> int:
-        return self.spms[0].elem_bits // 8
+        """Bytes per element on the DMA side (only 32-bit SPMs are reached by DMA)."""
+        return DMA_ELEM_BITS // 8
+
+    @property
+    def dma_spms(self) -> list[Spm]:
+        return [spm for spm in self.spms if spm.dma]
 
     def select(self, addr: str) -> str:
         hi = self.offset_bits + self.select_bits - 1
@@ -140,9 +160,10 @@ def build_layout(proc: ast.Proc) -> SpmLayout:
                 isinstance(ty.element_type, ast.BasicType_ApFixed),
                 *_banks(name, ty, attrs))
             for index, (name, ty, attrs) in enumerate(arrays)]
-    if {spm.elem_bits for spm in spms} != {32}:
-        # Burst lanes are carved from the beat in element-sized slices.
-        raise NotImplementedError("only 32-bit SPM elements are supported")
+    for spm in spms:
+        if spm.elem_bits not in SPM_ELEM_BITS:
+            raise NotImplementedError(f"static {spm.name}: {spm.elem_bits}-bit elements; SPM "
+                                      f"elements are {', '.join(map(str, SPM_ELEM_BITS))} bits")
     region = max(spm.elements * spm.elem_bits // 8 for spm in spms)
     return SpmLayout(spms, math.ceil(math.log2(region)), max(1, math.ceil(math.log2(len(spms)))))
 

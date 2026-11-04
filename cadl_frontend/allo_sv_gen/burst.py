@@ -2,36 +2,38 @@
 
 The DMA engine writes one beat per cycle on burst_write and reads by issuing
 burst_read_0 with an address; the beat returns on burst_read_1_res0 one
-cycle later. A beat carries `beat_bits / elem_bits` consecutive elements.
+cycle later. A beat carries `beat_bits / 32` consecutive elements of a 32-bit
+SPM; narrower SPMs are not on the burst port (spm.py), so a beat addressed to
+one is dropped on write and reads as zero.
 Beat writes are write sources of the SPM write blocks (spm.py).
 """
 from __future__ import annotations
 
 from .ports import WrapperPort, width_of
-from .spm import SpmLayout, SpmWrite
+from .spm import DMA_ELEM_BITS, SpmLayout, SpmWrite
 
 
 def burst_writes(layout: SpmLayout, ports: list[WrapperPort]) -> list[SpmWrite]:
     """One write source per SPM and beat lane: element `addr + lane` of the selected SPM."""
-    elem = layout.spms[0].elem_bits
+    elem = DMA_ELEM_BITS
     lanes = width_of(ports, "burst_write_data") // elem
     wsel, wel = layout.select("burst_write_addr"), layout.element("burst_write_addr")
     return [SpmWrite(spm.name, "dma", f"!rst && burst_write_enable && {wsel} == {spm.index}",
                      f"{wel} + {lane}", f"burst_write_data[{lane * elem + elem - 1}:{lane * elem}]")
-            for spm in layout.spms for lane in range(lanes)]
+            for spm in layout.dma_spms for lane in range(lanes)]
 
 
 def generate_burst(layout: SpmLayout, ports: list[WrapperPort]) -> str:
     beat = width_of(ports, "burst_write_data")
     assert width_of(ports, "burst_read_1_res0") == beat
-    elem = layout.spms[0].elem_bits
+    elem = DMA_ELEM_BITS
     lanes = beat // elem
     wsel = layout.select("burst_write_addr")
     rsel, rel = layout.select("burst_read_0_addr"), layout.element("burst_read_0_addr")
 
     read_cases = "\n".join(
         f"        {spm.index}: spm_burst_read_data[spm_lane*{elem} +: {elem}] <= "
-        f"{spm.ref(f'{rel} + spm_lane')};" for spm in layout.spms)
+        f"{spm.ref(f'{rel} + spm_lane')};" for spm in layout.dma_spms)
     used_bits = layout.offset_bits + layout.select_bits
     return f"""reg [{beat - 1}:0] spm_burst_read_data;
 assign burst_write_ready = !rst;

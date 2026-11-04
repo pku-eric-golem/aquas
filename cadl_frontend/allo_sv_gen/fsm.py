@@ -41,6 +41,8 @@ which add their own states through `FlowBuilder.wait` and `FlowBuilder.drive`.
 from __future__ import annotations
 
 import math
+import struct
+from fractions import Fraction
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Union
 
@@ -116,6 +118,9 @@ class Fsm:
         self.spm_writes: dict[str, Spm] = {}  # SPMs with FSM element writes
         self.comb: dict[str, int] = {}  # edge-port registers -> bits, 0 unless driven
         self.comb_outputs: dict[str, str] = {}  # wrapper output -> edge-port register
+        # Command signals read after the first wait state -> (register, bits),
+        # latched when the command fires, as saved_rd is.
+        self.latched: dict[str, tuple[str, int]] = {}
 
     @staticmethod
     def write_port(spm: Spm) -> str:
@@ -157,6 +162,20 @@ def _basic(ty: ast.BasicType) -> tuple[int, bool]:
     if isinstance(ty, ast.BasicType_ApFixed):
         return ty.width, True
     raise NotImplementedError(f"FSM variables of type {ty}")
+
+
+def _f32_bits(lit: ast.LiteralInner_Float) -> int:
+    """IEEE single bits of a float literal, rounded once from its decimal text."""
+    exact = Fraction(lit.text) if lit.text else Fraction(lit.value)
+    def bits(x: float) -> int:
+        return struct.unpack("<I", struct.pack("<f", x))[0]
+    def value(b: int) -> Fraction:
+        return Fraction(struct.unpack("<f", struct.pack("<I", b))[0])
+    near = bits(float(exact))  # within one ulp of the nearest single
+    best = min((b for b in (near - 1, near, near + 1) if 0 <= b < 1 << 32
+                and (b >> 23) & 0xFF != 0xFF),
+               key=lambda b: (abs(value(b) - exact), b & 1))
+    return best
 
 
 def _is_irf(e: ast.Expr) -> bool:
@@ -228,6 +247,10 @@ class FlowBuilder:
 
     def expr(self, e: ast.Expr) -> str:
         if isinstance(e, ast.LitExpr):
+            if isinstance(e.literal.lit, ast.LiteralInner_Float) \
+                    and isinstance(e.literal.ty, ast.BasicType_Float32):
+                # FSM values and f32 SPM elements are raw words: the literal's bits.
+                return f"32'h{_f32_bits(e.literal.lit):08x}"
             if not isinstance(e.literal.lit, ast.LiteralInner_Fixed):
                 raise NotImplementedError(f"{self.flow.name}: literal {e}")
             bits, signed = _basic(e.literal.ty)
@@ -261,6 +284,11 @@ class FlowBuilder:
         if isinstance(e, ast.IfExpr):
             return (f"({self.expr(e.condition)} ? {self.expr(e.then_branch)}"
                     f" : {self.expr(e.else_branch)})")
+        if isinstance(e, ast.BitcastExpr):
+            # Same bits, new type. FSM variables are integers and f32 SPM elements
+            # hold raw words, so only signedness changes.
+            cast = "$signed" if e.target_type.strip().startswith("i") else "$unsigned"
+            return f"{cast}({self.expr(e.operand)})"
         raise NotImplementedError(f"{self.flow.name}: expression {e}")
 
     def _csr(self, e: ast.Expr) -> str | None:
@@ -381,6 +409,10 @@ class FlowBuilder:
             if spm is not None:
                 self.load(e.indices[0])
                 if id(e) not in self.loaded:
+                    if spm.name in self.written:
+                        # A write on this edge lands at the clock edge that would latch
+                        # the read: wait a cycle so the read sees it.
+                        self.wait("spm_raw", "1'b1")
                     index = self.check_range(e.indices[0], 1, spm, "spm_index", f"{spm.name} index")
                     var = self.declare(f"spm_read{len(self.loaded)}", spm.elem_bits, spm.signed)
                     self.action(f"{var.reg} <= {spm.ref(index)};")
@@ -559,9 +591,16 @@ class FlowBuilder:
         self.env |= {b.id: value for b, value in zip(s.bindings, nexts)}
 
     def _fire(self, signal: str) -> str:
-        if not self.on_fire:
-            raise ValueError(f"{self.flow.name}: {signal} is only valid before the first wait state")
-        return signal
+        """A command signal: the port on the firing edge, its latched copy after."""
+        if self.on_fire:
+            return signal
+        field = signal[len(CMD):]
+        if field == "rd":
+            return "saved_rd"
+        if signal not in self.fsm.latched:
+            bits = 32 if field.endswith("data") else 5
+            self.fsm.latched[signal] = (f"saved_{field}", bits)
+        return self.fsm.latched[signal][0]
 
     def _goto(self, target: Union[State, Branch]) -> None:
         assert self.edge.target is None
@@ -672,6 +711,7 @@ def generate_fsm(fsm: Fsm, port_names: set[str]) -> str:
     out = [f"localparam [{width - 1}:0]\n  {names};",
            f"reg [{width - 1}:0] state;", "reg [4:0] saved_rd;", "reg [31:0] response_data;",
            "reg [31:0] error_status;"]
+    out += [f"reg [{bits - 1}:0] {reg};" for reg, bits in fsm.latched.values()]
     out += [f"reg {'signed ' if v.signed else ''}[{v.bits - 1}:0] {v.reg};"
             for v in fsm.regs.values()]
     if fsm.uses_mem:
@@ -703,7 +743,9 @@ def generate_fsm(fsm: Fsm, port_names: set[str]) -> str:
             "    case (state)",
             "      S_IDLE: if (command_fire) begin",
             f"        saved_rd <= {CMD}rd;",
-            "        response_data <= 0;",
+            "        response_data <= 0;"]
+    body += [f"        {reg} <= {signal};" for signal, (reg, _) in fsm.latched.items()]
+    body += [
             f"        case ({{{CMD}opcode, {CMD}funct}})"]
     for d in fsm.decode:
         body.append(f"          {{7'h{d.opcode:02x}, 7'h{d.funct7:02x}}}: begin  // {d.flow}")

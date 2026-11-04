@@ -121,10 +121,14 @@ def test_gemm_decode_and_states():
     assert "gemm8x8_fp32__use_c <= 8'(" in entry
 
 
-def test_irf_read_after_wait_rejected():
+def test_irf_read_after_wait_latched():
+    # After the first wait state rs2 is read from its copy latched at command fire.
     source = SOURCE.replace("_irf[rd] = acc + 1;", "_irf[rd] = _irf[rs2];")
-    with pytest.raises(ValueError, match="only valid before the first wait state"):
-        build_fsm(parse_proc(source), {})
+    fsm = build_fsm(parse_proc(source), {})
+    assert fsm.latched == {"rocc_cmd_rocc_cmd_rs2data": ("saved_rs2data", 32)}
+    sv = generate_fsm(fsm, set())
+    assert "reg [31:0] saved_rs2data;" in sv
+    assert "saved_rs2data <= rocc_cmd_rocc_cmd_rs2data;" in sv
 
 
 def test_missing_handler_rejected():

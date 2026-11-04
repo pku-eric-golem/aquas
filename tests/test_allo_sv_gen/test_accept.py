@@ -260,7 +260,34 @@ def fp_more(model, rng):
     return s
 
 
-SCENARIOS = [vec_add, mat_scale, reduce_sum, prefix_sum, relu_count, fp_ops, banked, fp_more]
+def narrow(model, rng):
+    # A [i8], B [i16], U [u8] go in packed through nw_write (the FSM only;
+    # narrow SPMs are not on the DMA side), C [i32] leaves by DMA.
+    s = Scenario()
+    a = rng.integers(-128, 128, 16).astype(np.int8)
+    b = rng.integers(-32768, 32768, 16).astype(np.int16)
+    u = rng.integers(0, 256, 16).astype(np.uint8)
+    a[:2], b[:2], u[:2] = (-128, 127), (-32768, 32767), (255, 0)
+    words = ([int(w) for w in a.view(np.uint32)] + [int(w) for w in b.view(np.uint32)]
+             + [int(w) for w in u.view(np.uint32)])
+    for address, word in enumerate(words):
+        s.invoke("nw_write", address, word)
+    s.invoke("nw_write", 16, 0, 1)  # bad address
+    for i in (0, 1, 15):
+        s.invoke("nw_read", i, 0, int(a[i]), funct=1)
+        s.invoke("nw_read", i, 1, int(b[i]), funct=1)
+        s.invoke("nw_read", i, 2, int(u[i]), funct=1)
+    s.invoke("nw_read", 2, 3, words[2], funct=1)
+    want = a.astype(np.int32) * b.astype(np.int32) + u.astype(np.int32)
+    got = np.zeros(16, np.int32)
+    model(a, b, u, got)
+    np.testing.assert_array_equal(got, want)
+    s.invoke("nw_run", 0, 0, funct=2)
+    s.store("store_c", 0, 0, want)
+    return s
+
+
+SCENARIOS = [vec_add, mat_scale, reduce_sum, prefix_sum, relu_count, fp_ops, banked, fp_more, narrow]
 
 
 def _simulate(work: Path, out: Path, s: Scenario) -> tuple[str, np.ndarray]:

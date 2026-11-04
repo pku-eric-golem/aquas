@@ -49,6 +49,10 @@ class DmaBridge:
         else:
             raise NotImplementedError(f"{where}: DMA statement {stmt} (only _mem <-> SPM ranges)")
 
+        target = self.layout[spm.expr.name]
+        if not target.dma:
+            raise NotImplementedError(f"{where}: DMA to {target.name}, a {target.elem_bits}-bit "
+                                      "SPM; only 32-bit SPMs are reached by DMA")
         count = _literal(mem.length, f"{where}: _mem transfer length")
         if spm.length is not None and _literal(spm.length, f"{where}: SPM range length") != count:
             raise ValueError(f"{where}: SPM and _mem ranges differ in length")

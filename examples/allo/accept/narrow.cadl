@@ -1,0 +1,84 @@
+// Route 1 acceptance kernel (8- and 16-bit SPM elements), built by
+// tools/allo-gen. A [i8] and B [i16] are written and read by the FSM only,
+// packed four and two to a word as in the vla_testbench engines; C [i32] is
+// the kernel output and leaves by DMA. SPM offsets are elements; _mem
+// addresses are bytes.
+static nw_a: [i8; 16];
+static nw_b: [i16; 16];
+static nw_u: [u8; 16];
+static nw_c: [i32; 16];
+
+allo narrow with s """
+import allo
+from allo.ir.types import int8, int16, int32, uint8
+
+
+def narrow(A: int8[16], B: int16[16], U: uint8[16], C: int32[16]):
+    for i in range(16):
+        C[i] = A[i] * B[i] + U[i]
+
+
+s = allo.customize(narrow)
+""";
+
+// rs1: word address w. rs2: packed value. w < 4: A[4w .. 4w+3] from bytes;
+// 4 <= w < 12: B[2(w-4) .. 2(w-4)+1] from halves; 12 <= w < 16: U from bytes.
+// rd: 0 accepted, 1 bad address.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype nw_write(rs1: u5, rs2: u5, rd: u5) {
+    let address: u32 = _irf[rs1];
+    let value: u32 = _irf[rs2];
+    let accepted: u32 = 0;
+    if (address >= 0) && (address < 4) { nw_a[address * 4 + 0] = (value >> 0) & 255; accepted = 1; }
+    if (address >= 0) && (address < 4) { nw_a[address * 4 + 1] = (value >> 8) & 255; accepted = 1; }
+    if (address >= 0) && (address < 4) { nw_a[address * 4 + 2] = (value >> 16) & 255; accepted = 1; }
+    if (address >= 0) && (address < 4) { nw_a[address * 4 + 3] = (value >> 24) & 255; accepted = 1; }
+    if (address >= 4) && (address < 12) { nw_b[(address - 4) * 2 + 0] = (value >> 0) & 65535; accepted = 1; }
+    if (address >= 4) && (address < 12) { nw_b[(address - 4) * 2 + 1] = (value >> 16) & 65535; accepted = 1; }
+    if (address >= 12) && (address < 16) { nw_u[(address - 12) * 4 + 0] = (value >> 0) & 255; accepted = 1; }
+    if (address >= 12) && (address < 16) { nw_u[(address - 12) * 4 + 1] = (value >> 8) & 255; accepted = 1; }
+    if (address >= 12) && (address < 16) { nw_u[(address - 12) * 4 + 2] = (value >> 16) & 255; accepted = 1; }
+    if (address >= 12) && (address < 16) { nw_u[(address - 12) * 4 + 3] = (value >> 24) & 255; accepted = 1; }
+    _irf[rd] = if accepted != 0 {0} else {1};
+}
+
+// rs1: index i. rs2: what to read. rd: 0: A[i] sign-extended; 1: B[i]
+// sign-extended; 2: U[i] zero-extended; 3: A[4i .. 4i+3] packed back into a
+// word (i < 4). Element reads sit in the branches, as in the vla_testbench
+// read instructions, so an index that is out of range for another branch
+// must not abort.
+#[opcode(7'b0001011)]
+#[funct7(7'b0000001)]
+rtype nw_read(rs1: u5, rs2: u5, rd: u5) {
+    let i: u32 = _irf[rs1];
+    let what: u32 = _irf[rs2];
+    let bits: u32 = 0;
+    if what == 0 { let a: i32 = nw_a[i]; bits = bitcast<u32>(a); }
+    if what == 1 { let b: i32 = nw_b[i]; bits = bitcast<u32>(b); }
+    if what == 2 { let u: u32 = nw_u[i]; bits = u; }
+    if what == 3 {
+        let a0: i32 = nw_a[i * 4 + 0]; bits = bits | ((bitcast<u32>(a0) & 255) << 0);
+        let a1: i32 = nw_a[i * 4 + 1]; bits = bits | ((bitcast<u32>(a1) & 255) << 8);
+        let a2: i32 = nw_a[i * 4 + 2]; bits = bits | ((bitcast<u32>(a2) & 255) << 16);
+        let a3: i32 = nw_a[i * 4 + 3]; bits = bits | ((bitcast<u32>(a3) & 255) << 24);
+    }
+    _irf[rd] = bits;
+}
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000010)]
+rtype nw_run(rs1: u5, rs2: u5, rd: u5) {
+    invoke narrow(A = nw_a[0 +: 16], B = nw_b[0 +: 16], U = nw_u[0 +: 16], C = nw_c[0 +: 16]);
+    _irf[rd] = 0;
+}
+
+// rs1: DRAM byte address. rs2: nw_c element offset. 16 elements, one burst.
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype store_c(rs1: u5, rs2: u5, rd: u5) {
+    let dram_base: u32 = _irf[rs1];
+    let spm_base: u32 = _irf[rs2];
+    _mem[dram_base +: 16] = nw_c[spm_base +: ];
+    _irf[rd] = 0;
+}
