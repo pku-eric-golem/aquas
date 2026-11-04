@@ -24,7 +24,8 @@ def run(request: dict) -> None:
     kernel = check_source(cadl.read_text(), str(cadl)).allo_kernels[request["kernel"]]
     rtl = request["rtl"] and Path(request["rtl"])
     build_kernel(load_schedule(kernel, directory, cadl), directory, rtl=rtl,
-                 csynth=request["csynth"], vitis_hls=request["vitis_hls"])
+                 csynth=request["csynth"], vitis_hls=request["vitis_hls"],
+                 clock_ns=request.get("clock_ns", 10))
 
 
 def main() -> int:

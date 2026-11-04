@@ -47,8 +47,9 @@ class BuildResult:
 
 def build(cadl: Path, output: Path, *, rtl: Path | None = None, csynth: bool = True,
           vitis_hls: str = "vitis_hls", allo_python: str | None = None,
-          cache: bool = True) -> BuildResult:
-    """`allo_python` runs the Allo code (default: $AQUAS_ALLO_PYTHON, else this interpreter)."""
+          cache: bool = True, clock_ns: float = 10) -> BuildResult:
+    """`allo_python` runs the Allo code (default: $AQUAS_ALLO_PYTHON, else this interpreter);
+    `clock_ns` is the HLS target clock period."""
     cadl, output = Path(cadl).resolve(), Path(output).resolve()
     proc = check_source(cadl.read_text(), str(cadl))
     if len(proc.allo_kernels) != 1:
@@ -60,7 +61,8 @@ def build(cadl: Path, output: Path, *, rtl: Path | None = None, csynth: bool = T
     hls_dir.mkdir(exist_ok=True)
 
     built = build_kernel_isolated(cadl, kernel, hls_dir, rtl=rtl, csynth=csynth,
-                                  vitis_hls=vitis_hls, python=allo_python, cache=cache)
+                                  vitis_hls=vitis_hls, python=allo_python, cache=cache,
+                                  clock_ns=clock_ns)
     project = built.project
     if built.rtl_dir is None:
         return BuildResult(output, project, None, built.cached)

@@ -39,7 +39,7 @@ class IsolatedBuild:
 
 
 def cache_inputs(kernel: ast.AlloKernel, *, rtl: Path | None, csynth: bool, vitis_hls: str,
-                 python: str) -> dict:
+                 python: str, clock_ns: float = 10) -> dict:
     return {
         "kernel": kernel.name, "schedule": kernel.schedule, "code": sha256(kernel.source.text),
         "generator": generator_hash(), "hardfloat": hardfloat_hash(),
@@ -47,6 +47,7 @@ def cache_inputs(kernel: ast.AlloKernel, *, rtl: Path | None, csynth: bool, viti
         "vitis_hls": vitis_hls_path(vitis_hls) if csynth and rtl is None else None,
         "rtl": hash_files(sorted(Path(rtl).glob("*.v"))) if rtl else None,
         "csynth": csynth,
+        "clock_ns": clock_ns,
     }
 
 
@@ -76,11 +77,12 @@ def _usable(directory: Path, key: str) -> bool:
 def build_kernel_isolated(cadl: Path, kernel: ast.AlloKernel, directory: Path, *,
                           rtl: Path | None = None, csynth: bool = True,
                           vitis_hls: str = "vitis_hls", python: str | None = None,
-                          cache: bool = True) -> IsolatedBuild:
+                          cache: bool = True, clock_ns: float = 10) -> IsolatedBuild:
     python = python or os.environ.get("AQUAS_ALLO_PYTHON") or sys.executable
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    inputs = cache_inputs(kernel, rtl=rtl, csynth=csynth, vitis_hls=vitis_hls, python=python)
+    inputs = cache_inputs(kernel, rtl=rtl, csynth=csynth, vitis_hls=vitis_hls, python=python,
+                          clock_ns=clock_ns)
     key = sha256(json.dumps(inputs, sort_keys=True))
     if cache and _usable(directory, key):
         return load_build(directory, cached=True)
@@ -88,7 +90,7 @@ def build_kernel_isolated(cadl: Path, kernel: ast.AlloKernel, directory: Path, *
     (directory / "stage.json").unlink(missing_ok=True)
     request = {"cadl": str(Path(cadl).resolve()), "kernel": kernel.name,
                "directory": str(directory), "rtl": str(Path(rtl).resolve()) if rtl else None,
-               "csynth": csynth, "vitis_hls": vitis_hls}
+               "csynth": csynth, "vitis_hls": vitis_hls, "clock_ns": clock_ns}
     (directory / "request.json").write_text(json.dumps(request, indent=2) + "\n")
     env = dict(os.environ, PYTHONPATH=os.pathsep.join(
         filter(None, [str(ROOT), os.environ.get("PYTHONPATH")])))

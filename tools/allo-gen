@@ -27,12 +27,14 @@ def main() -> int:
     group.add_argument("--no-csynth", dest="csynth", action="store_false",
                        help="stop after writing the HLS project")
     parser.add_argument("--allo-python", help="interpreter with Allo that runs the kernel code")
+    parser.add_argument("--clock", type=float, default=10.0, metavar="NS",
+                        help="HLS target clock period in ns (default 10)")
     parser.add_argument("--rebuild", dest="cache", action="store_false",
                         help="build the kernel again even if the cached build matches")
     args = parser.parse_args()
     try:
         result = build(args.input, args.output, rtl=args.rtl, csynth=args.csynth,
-                       allo_python=args.allo_python, cache=args.cache)
+                       allo_python=args.allo_python, cache=args.cache, clock_ns=args.clock)
     except (CADLParseError, ValueError, NotImplementedError, FileNotFoundError,
             RuntimeError) as error:
         print(f"allo-gen: {error}", file=sys.stderr)

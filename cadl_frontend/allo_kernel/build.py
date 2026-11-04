@@ -34,9 +34,12 @@ class KernelBuild:
 
 
 def build_kernel(schedule, directory: Path, *, rtl: Path | None = None, csynth: bool = True,
-                 vitis_hls: str = "vitis_hls") -> KernelBuild:
-    """Emit the HLS project for `schedule`, then take RTL from `rtl` or from Vitis."""
-    project = emit_project(schedule, directory)
+                 vitis_hls: str = "vitis_hls", clock_ns: float = 10) -> KernelBuild:
+    """Emit the HLS project for `schedule`, then take RTL from `rtl` or from Vitis.
+
+    `clock_ns` is the HLS target clock period (create_clock -period).
+    """
+    project = emit_project(schedule, directory, clock_ns=clock_ns)
     latency, report = None, None
     if rtl is not None:
         rtl_dir, provenance = Path(rtl).resolve(), "given"

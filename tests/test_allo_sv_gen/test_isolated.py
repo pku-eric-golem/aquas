@@ -56,7 +56,14 @@ def test_cache_reuses_until_an_input_changes(tmp_path):
     changed.write_text(GEMM.read_text().replace("s = allo.customize", "# edited\ns = allo.customize"))
     assert not _build(changed, tmp_path / "out", rtl=MANUAL / "rtl").cached
     stage = json.loads((tmp_path / "out/hls/stage.json").read_text())
-    assert set(stage["inputs"]) >= {"code", "generator", "hardfloat", "allo", "python", "rtl"}
+    assert set(stage["inputs"]) >= {"code", "generator", "hardfloat", "allo", "python", "rtl",
+                                    "clock_ns"}
+
+    # So does the HLS target clock, which reaches run.tcl.
+    assert "create_clock -period 10" in (tmp_path / "out/hls/run.tcl").read_text()
+    assert not _build(changed, tmp_path / "out", rtl=MANUAL / "rtl", clock_ns=4.0).cached
+    assert "create_clock -period 4.0" in (tmp_path / "out/hls/run.tcl").read_text()
+    assert _build(changed, tmp_path / "out", rtl=MANUAL / "rtl", clock_ns=4.0).cached
 
 
 def test_worker_errors_keep_their_type(tmp_path):
